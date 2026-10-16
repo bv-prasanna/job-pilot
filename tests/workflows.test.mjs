@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {findContacts,rankJobs,followUps,overview} from '../server/workflows.mjs';
+const job={title:'Engineering Manager',company:'Example',description:'Java Spring Boot Kafka microservices'};
+test('contact ranking presents only saved matching-company contacts',()=>{const c=[{name:'HR',company:'example',title:'Recruiter',kind:'recruiter',email:'hr@example.com'},{name:'Other',company:'Other',title:'Recruiter',kind:'recruiter'}];assert.deepEqual(findContacts(c,job,{kind:'recruiter'}).map(v=>v.name),['HR']);assert.equal(findContacts(c,job)[0].publiclyVerified,false);});
+test('rank jobs from profile without claiming official ATS score',()=>{const ranked=rankJobs([job,{title:'Salesperson',company:'B',description:'sales retail marketing'}],{resumeText:'Java Spring Boot Kafka engineering manager'});assert.equal(ranked[0].company,'Example');assert.ok(ranked[0].match.score>0);});
+test('followups exclude drafts and recently sent messages',()=>{const arr=[{status:'Sent',updatedAt:'2026-01-01T00:00:00Z'},{status:'Draft',updatedAt:'2026-01-01T00:00:00Z'},{status:'Sent',updatedAt:'2026-01-11T00:00:00Z'}];assert.equal(followUps(arr,{now:'2026-01-12T00:00:00Z',afterDays:7}).length,1);});
+test('overview summarizes application pipeline',()=>{const r=overview({jobs:[job],contacts:[],applications:[{status:'Applied'}],outreach:[{status:'Draft'}]});assert.equal(r.applicationStatuses.Applied,1);assert.equal(r.outreachStatuses.Draft,1);});
