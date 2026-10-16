@@ -103,3 +103,14 @@ All routes require the configured API bearer token; the backend is currently loc
 The Gmail helper is deliberately not exposed as an unsafe browser-accessible email endpoint. OAuth callbacks, secured token storage, tenant-scoped login, idempotent audited send-confirmation and real Gmail account connection remain prerequisites for actual sending.
 
 **Release gate:** Complete production authentication, encrypted account tokens, transactional persistent storage, dependency/build checks, threat modeling, integration tests and deployment hardening before exposing the API publicly. No guarantee of zero defects is possible.
+
+
+## Integration and Cloudflare release gate
+
+The React workspace currently stores its data in the browser. The Node API currently authenticates with a single shared bearer token. **Do not place that token in Vite environment variables or React source:** build-time variables are public in the delivered JavaScript bundle.
+
+Before enabling frontend/API sync at jobs.bvprasanna.com, implement a backend login with HttpOnly Secure SameSite session cookies, per-user authorization and CSRF protection (or an equivalent secure flow), migrate the JSON store to a transactional database, connect Google OAuth securely on the server, and test data isolation. Gmail sends must require an authenticated explicit approval and an idempotency key. The Gmail helper by itself is not a connected Gmail service. Public job feeds do not reveal verified recruiter emails.
+
+Cloudflare Pages builds React static assets only; it does not host the existing Node HTTP API. The backend needs a separate compatible server or a deliberate Workers-compatible rewrite with durable storage.
+
+Recent code changes add contact/reference consistency checks during updates, backend regression cases, and a frontend render error boundary. These commits were not verified using a complete npm build/test run in the editing environment. The GitHub quality workflow is manual-only and has not been triggered.
