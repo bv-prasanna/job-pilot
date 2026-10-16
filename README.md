@@ -88,3 +88,18 @@ Authenticated `POST /api/discover` accepts `{"provider":"greenhouse","board":"co
 **Not yet enabled:** server-side OAuth state/verifier persistence and callback, encrypted per-user refresh-token storage, token revocation, per-user identity/permissions, secure sending endpoint and consent UI. Do not expose Gmail credentials, refresh tokens or `JOBPILOT_API_TOKEN` in React. Google Cloud OAuth client setup and account authorization are prerequisites. Current local-only API and JSON store are not suitable for a publicly exposed multiuser app.
 
 Job discovery is available through authenticated `POST /api/discover` with `{"provider":"greenhouse","board":"company-slug"}` or `{"provider":"lever","board":"company-slug"}`. It returns job previews; it does not apply or send email.
+
+
+## Backend workflow endpoints
+
+All routes require the configured API bearer token; the backend is currently localhost-only, single-owner software, not a production multiuser service.
+
+- `GET /api/overview` — application/outreach pipeline summary.
+- `POST /api/rank` with `{"profileId":"UUID","minimumScore":60}` — sort locally saved openings by heuristic keyword match. This is **not** a verified ATS rating.
+- `GET /api/jobs/{jobId}/contacts?kind=recruiter` or `kind=referral` — suggest **previously saved** same-company contacts. Contact confidence is based on stored fields, not external identity verification.
+- `GET /api/follow-ups?days=7` — identify sent outreach not recently updated.
+- Referential integrity prevents deletion of jobs referenced by applications/outreach, or contacts referenced by outreach.
+
+The Gmail helper is deliberately not exposed as an unsafe browser-accessible email endpoint. OAuth callbacks, secured token storage, tenant-scoped login, idempotent audited send-confirmation and real Gmail account connection remain prerequisites for actual sending.
+
+**Release gate:** Complete production authentication, encrypted account tokens, transactional persistent storage, dependency/build checks, threat modeling, integration tests and deployment hardening before exposing the API publicly. No guarantee of zero defects is possible.
