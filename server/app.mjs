@@ -38,6 +38,7 @@ export function createApp({file='./data/jobpilot.json',token=process.env.JOBPILO
  try{await queue;await load();const url=new URL(req.url,'http://localhost');const parts=url.pathname.split('/').filter(Boolean);
  if(url.pathname==='/api/health'&&req.method==='GET')return reply(res,200,{ok:true,version:1});
  if(parts[0]!=='api')throw fail(404,'Not found');const type=parts[1],id=parts[2];
+ if(type==='discover'&&req.method==='POST'&&!id){const body=await parseBody(req,maxBody);try{const items=await discover({provider:body.provider,board:body.board});return reply(res,200,{items,count:items.length,imported:false});}catch(e){throw fail(/Invalid board|Unsupported provider/.test(e.message)?400:502,'Job feed unavailable');}}
  if(type==='match'&&req.method==='POST'&&!id){const b=await parseBody(req,maxBody);return reply(res,200,matchResume(b.resumeText,b.description,b.title));}
  if(type==='draft'&&req.method==='POST'&&!id){return reply(res,200,draftMessage(await parseBody(req,maxBody)));}
  if(type==='jobs'&&id&&parts[3]==='match'&&parts.length===4&&req.method==='POST'){const job=state.jobs.find(x=>x.id===id);if(!job)throw fail(404,'Job not found');const body=await parseBody(req,maxBody);const profile=state.profiles.find(x=>x.id===body.profileId);if(!profile)throw fail(404,'Profile not found');return reply(res,200,{jobId:job.id,profileId:profile.id,...matchResume(profile.resumeText||'',job.description||'',job.title||'')});}
