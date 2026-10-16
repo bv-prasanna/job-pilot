@@ -24,6 +24,9 @@ test('authenticated REST CRUD, input checks, and disk persistence',async()=>{
  const profile=(await req('/api/profiles','POST',{name:'Candidate',resumeText:'engineering management Java'})).data;
  assert.equal((await req('/api/jobs/'+job.id+'/match','POST',{profileId:profile.id})).status,200);
  assert.equal((await req('/api/jobs/'+job.id+'/match','POST',{profileId:'bad'})).status,404);
+ assert.equal((await req('/api/jobs/'+job.id,'DELETE')).status,409);
+ const application=(await req('/api/applications')).data.items[0];
+ assert.equal((await req('/api/applications/'+application.id,'DELETE')).status,204);
  assert.equal((await req('/api/jobs/'+job.id,'DELETE')).status,204);
  assert.equal((await req('/api/jobs/'+job.id)).status,404);
  }finally{await new Promise(r=>server.close(r));await rm(dir,{recursive:true,force:true});}
