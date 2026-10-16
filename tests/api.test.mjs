@@ -32,6 +32,15 @@ test('authenticated REST CRUD, input checks, and disk persistence',async()=>{
  assert.equal((await req('/api/follow-ups?days=7')).status,200);
  assert.equal((await req('/api/jobs/'+job.id+'/contacts')).status,200);
  assert.equal((await req('/api/jobs/'+job.id+'/contacts?kind=invalid')).status,400);
+ const recruiter=(await req('/api/contacts','POST',{name:'Jane',company:'Example',kind:'recruiter',email:'jane@example.com'})).data;
+ const outreach=(await req('/api/outreach','POST',{contactId:recruiter.id,recipient:'jane@example.com',subject:'Hello',body:'Interest'})).data;
+ assert.equal((await req('/api/outreach/'+outreach.id,'PUT',{recipient:'other@example.com'})).status,400);
+ assert.equal((await req('/api/outreach/'+outreach.id,'PUT',{subject:'Updated'})).status,200);
+ assert.equal((await req('/api/outreach/'+outreach.id)).data.recipient,'jane@example.com');
+ assert.equal((await req('/api/contacts/'+recruiter.id,'DELETE')).status,409);
+ assert.equal((await req('/api/outreach/'+outreach.id,'DELETE')).status,204);
+ assert.equal((await req('/api/contacts/'+recruiter.id,'DELETE')).status,204);
+
  
  assert.equal((await req('/api/jobs/'+job.id,'DELETE')).status,409);
  const application=(await req('/api/applications')).data.items[0];
