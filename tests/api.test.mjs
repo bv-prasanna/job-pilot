@@ -24,6 +24,15 @@ test('authenticated REST CRUD, input checks, and disk persistence',async()=>{
  const profile=(await req('/api/profiles','POST',{name:'Candidate',resumeText:'engineering management Java'})).data;
  assert.equal((await req('/api/jobs/'+job.id+'/match','POST',{profileId:profile.id})).status,200);
  assert.equal((await req('/api/jobs/'+job.id+'/match','POST',{profileId:'bad'})).status,404);
+ assert.equal((await req('/api/overview')).data.jobs,1);
+ assert.equal((await req('/api/rank','POST',{profileId:profile.id})).status,200);
+ assert.equal((await req('/api/rank','POST',{profileId:profile.id,minimumScore:101})).status,400);
+ assert.equal((await req('/api/rank','POST',{profileId:'missing'})).status,404);
+ assert.equal((await req('/api/follow-ups?days=0')).status,400);
+ assert.equal((await req('/api/follow-ups?days=7')).status,200);
+ assert.equal((await req('/api/jobs/'+job.id+'/contacts')).status,200);
+ assert.equal((await req('/api/jobs/'+job.id+'/contacts?kind=invalid')).status,400);
+ 
  assert.equal((await req('/api/jobs/'+job.id,'DELETE')).status,409);
  const application=(await req('/api/applications')).data.items[0];
  assert.equal((await req('/api/applications/'+application.id,'DELETE')).status,204);
