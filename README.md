@@ -72,3 +72,10 @@ Draft generation: `POST /api/draft`. All operations require `Authorization: Bear
 No bulk email is sent and this API does not claim to verify third-party contact details. Never expose the API token in frontend browser code.
 
 **Not production complete:** The current API uses a single long-lived token, single-file storage and per-process request limits. It lacks user login/OAuth, per-user authorization, multi-process DB locking, encrypted secret storage, email provider integration, external job-source connectors, and frontend API wiring. Use localhost for development only until those controls are added.
+
+
+## Public ATS job discovery
+
+Authenticated `POST /api/discover` accepts `{"provider":"greenhouse","board":"company-board-slug"}` or `{"provider":"lever","board":"company-slug"}`. It returns up to 500 public postings and their original application URLs. Results are preview-only, **not automatically applied to or emailed**. Employers may restrict or change their public feeds. No LinkedIn scraping or email guessing is used.
+
+**Deployment blockers:** Gmail OAuth and approved sending, candidate accounts with per-user authorization, a transactional database and backups, secure sessions, PDF/DOCX resume extraction, comprehensive UI integration tests, and production deployment verification. Do not embed the API master token in browser code.
