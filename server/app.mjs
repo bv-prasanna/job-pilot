@@ -4,6 +4,7 @@ import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import {dirname} from 'node:path';
 import {matchResume,draftMessage,validEmail,safeUrl,clean} from '../src/lib/core.mjs';
 import {createRateLimiter,validateEntityReferences} from './security.mjs';
+import {discover} from './discovery.mjs';
 const types=['profiles','jobs','contacts','outreach','applications'];
 const statuses=['Saved','Applied','Contacted','Interview','Offer','Rejected'];
 const kinds=['recruiter','referral'];
