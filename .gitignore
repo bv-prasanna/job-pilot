@@ -6,3 +6,8 @@ coverage/
 .env.*
 !.env.example
 .DS_Store
+
+data/
+.env
+.env.*
+!.env.example
