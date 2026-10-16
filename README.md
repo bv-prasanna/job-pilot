@@ -52,3 +52,23 @@ No claim of bug-free software or guaranteed coverage is made. Browser E2E tests,
 3. Add authenticated Gmail/Outlook OAuth sending with explicit approvals, idempotency and quota enforcement.
 4. Add permissioned hiring contact discovery and private-network referral ranking from authorized sources.
 5. Add real backend, secure storage, data deletion/export, security scanning and full browser E2E suite before broader deployment.
+
+
+## Local API backend (single-owner MVP)
+
+Requires Node.js 22 or newer. Set a random secret in `JOBPILOT_API_TOKEN` (24+ characters); never commit it.
+Set `JOBPILOT_ALLOWED_ORIGIN` to the exact web frontend origin when requests come from a browser.
+
+```bash
+export JOBPILOT_API_TOKEN="replace-with-a-long-random-secret-value"
+npm run api
+npm test
+```
+
+API defaults to `http://127.0.0.1:8787` and stores records in `./data/jobpilot.json` (ignored by Git).
+Authenticated resources: `/api/profiles`, `/api/jobs`, `/api/contacts`, `/api/outreach`, and `/api/applications`; each supports GET list/item, POST create, PUT update and DELETE.
+Matching: `POST /api/match` with resume/JD text or `POST /api/jobs/:jobId/match` with `{"profileId":"..."}`.
+Draft generation: `POST /api/draft`. All operations require `Authorization: Bearer <token>`.
+No bulk email is sent and this API does not claim to verify third-party contact details. Never expose the API token in frontend browser code.
+
+**Not production complete:** The current API uses a single long-lived token, single-file storage and per-process request limits. It lacks user login/OAuth, per-user authorization, multi-process DB locking, encrypted secret storage, email provider integration, external job-source connectors, and frontend API wiring. Use localhost for development only until those controls are added.
