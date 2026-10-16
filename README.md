@@ -79,3 +79,12 @@ No bulk email is sent and this API does not claim to verify third-party contact 
 Authenticated `POST /api/discover` accepts `{"provider":"greenhouse","board":"company-board-slug"}` or `{"provider":"lever","board":"company-slug"}`. It returns up to 500 public postings and their original application URLs. Results are preview-only, **not automatically applied to or emailed**. Employers may restrict or change their public feeds. No LinkedIn scraping or email guessing is used.
 
 **Deployment blockers:** Gmail OAuth and approved sending, candidate accounts with per-user authorization, a transactional database and backups, secure sessions, PDF/DOCX resume extraction, comprehensive UI integration tests, and production deployment verification. Do not embed the API master token in browser code.
+
+
+### Backend Gmail integration status (October 2026)
+
+`server/gmail.mjs` provides Google OAuth PKCE authorization URL generation, code/refresh-token exchange, RFC 2047/MIME UTF-8 message generation and an explicitly approved Gmail send adapter. `tests/gmail.test.mjs` covers these functions with mocked network requests. No live Google requests were made, and no outbound email is sent by existing application endpoints.
+
+**Not yet enabled:** server-side OAuth state/verifier persistence and callback, encrypted per-user refresh-token storage, token revocation, per-user identity/permissions, secure sending endpoint and consent UI. Do not expose Gmail credentials, refresh tokens or `JOBPILOT_API_TOKEN` in React. Google Cloud OAuth client setup and account authorization are prerequisites. Current local-only API and JSON store are not suitable for a publicly exposed multiuser app.
+
+Job discovery is available through authenticated `POST /api/discover` with `{"provider":"greenhouse","board":"company-slug"}` or `{"provider":"lever","board":"company-slug"}`. It returns job previews; it does not apply or send email.
