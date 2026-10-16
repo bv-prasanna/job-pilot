@@ -1,0 +1,12 @@
+export const STATES: readonly string[];
+export const OUTREACH: readonly string[];
+export function tokenize(text:string):string[];
+export function matchResume(resume:string,description:string,title?:string):{score:number|null;matched:string[];missing:string[];analyzed:number};
+export function validEmail(v:string):boolean;
+export function safeUrl(v:string):string;
+export function clean(v:unknown,max?:number):string;
+export function jobKey(j:{company?:string;title?:string;url?:string}):string;
+export function draftMessage(o?:{kind?:string;recipient?:string;name?:string;role?:string;company?:string;match?:number|null;skills?:string[];sender?:string;custom?:string}):{subject:string;body:string;recipient:string;match:number|null};
+export function mailtoLink(d:{recipient:string;subject:string;body:string}):string;
+export function toCsv(records:Record<string,unknown>[],keys:string[]):string;
+export function parseCsv(text:string):Record<string,string>[];
