@@ -1,4 +1,4 @@
-import {useMemo,useState,type FormEvent} from 'react';
+import {useState,type FormEvent} from 'react';
 import {quickApplyDraft,gmailRawWithAttachment} from './lib/quickApply.mjs';
 
 type Props={resumeText:string;sender:string};
@@ -19,7 +19,7 @@ export default function QuickApply({resumeText,sender}:Props){
  const[email,setEmail]=useState(''),[role,setRole]=useState(''),[company,setCompany]=useState(''),[jd,setJd]=useState('');
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false);
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
- const match=useMemo(()=>draft?.match,null===draft?[]:[draft]);
+ const match=draft?.match;
  function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText,sender}));setStatus('Review the message carefully before sending. Resume attachment is required.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
  async function send(){
   if(!draft||busy)return;
