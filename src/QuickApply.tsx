@@ -1,4 +1,4 @@
-import {useState,type FormEvent} from 'react';
+import {useEffect,useState,type FormEvent} from 'react';
 import {quickApplyDraft,gmailRawWithAttachment} from './lib/quickApply.mjs';
 
 type Props={resumeText:string;sender:string};
@@ -19,6 +19,7 @@ export default function QuickApply({resumeText,sender}:Props){
  const[email,setEmail]=useState(''),[role,setRole]=useState(''),[company,setCompany]=useState(''),[jd,setJd]=useState('');
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false);
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
+ useEffect(()=>{if(clientId)void loadGoogleScript().catch(()=>{});},[clientId]);
  const match=draft?.match;
  function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText,sender}));setStatus('Review the message carefully before sending. Resume attachment is required.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
  async function send(){
@@ -28,12 +29,12 @@ export default function QuickApply({resumeText,sender}:Props){
   if(!window.confirm('Send this email to '+draft.to+' with resume '+file.name+' attached using your Google account?'))return;
   setBusy(true);setStatus('Connecting to Gmail securely...');
   try{
-   const raw=await gmailRawWithAttachment({...draft,file});
-   await loadGoogleScript();
-   if(!window.google?.accounts?.oauth2)throw Error('Google sign-in is unavailable');
+   if(!window.google?.accounts?.oauth2)throw Error('Google sign-in is still loading. Please try again.');
    const client=window.google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/gmail.send',callback:async result=>{
      if(!result.access_token){setStatus('Google authorization was cancelled or rejected.');setBusy(false);return;}
      try{
+      setStatus('Preparing the resume attachment...');
+      const raw=await gmailRawWithAttachment({...draft,file});
       setStatus('Sending approved application with resume...');
       const response=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{Authorization:'Bearer '+result.access_token,'Content-Type':'application/json'},body:JSON.stringify({raw})});
       const payload=await response.json().catch(()=>({}));
@@ -50,10 +51,10 @@ export default function QuickApply({resumeText,sender}:Props){
  return <><div className="sectionhead"><div><h1>Quick Apply by Email</h1><p>Paste an opening, tailor the email from your saved resume, attach the actual file and approve sending.</p></div></div>
  <div className="panel" style={{padding:24,maxWidth:900}}>
   <form onSubmit={prepare}>
-   <div style={row}><label htmlFor="qa-to">Recruiter email *</label><input id="qa-to" type="email" required value={email} onChange={e=>setEmail(e.target.value)} style={full} placeholder="recruiter@company.com"/></div>
-   <div style={row}><label htmlFor="qa-role">Role or position *</label><input id="qa-role" required value={role} onChange={e=>setRole(e.target.value)} style={full} placeholder="Engineering Manager"/></div>
-   <div style={row}><label htmlFor="qa-company">Company (optional)</label><input id="qa-company" value={company} onChange={e=>setCompany(e.target.value)} style={full} placeholder="Company name"/></div>
-   <div style={row}><label htmlFor="qa-jd">Job description (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>setJd(e.target.value)} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
+   <div style={row}><label htmlFor="qa-to">Recruiter email *</label><input id="qa-to" type="email" required value={email} onChange={e=>{setEmail(e.target.value);setDraft(null)}} style={full} placeholder="recruiter@company.com"/></div>
+   <div style={row}><label htmlFor="qa-role">Role or position *</label><input id="qa-role" required value={role} onChange={e=>{setRole(e.target.value);setDraft(null)}} style={full} placeholder="Engineering Manager"/></div>
+   <div style={row}><label htmlFor="qa-company">Company (optional)</label><input id="qa-company" value={company} onChange={e=>{setCompany(e.target.value);setDraft(null)}} style={full} placeholder="Company name"/></div>
+   <div style={row}><label htmlFor="qa-jd">Job description (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>{setJd(e.target.value);setDraft(null)}} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
    <div style={row}><label htmlFor="qa-file">Attach resume (PDF, DOC or DOCX; max 7 MB) *</label><input id="qa-file" type="file" accept=".pdf,.doc,.docx" onChange={e=>setFile(e.target.files?.[0]||null)} style={full}/></div>
    {!resumeText.trim()&&<p className="hint">Tip: Save your resume text under Resume & profile to personalize applications based on your experience.</p>}
    <button className="btn primary" type="submit">Generate email draft</button>
