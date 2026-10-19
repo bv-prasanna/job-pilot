@@ -16,12 +16,12 @@ function loadGoogleScript():Promise<void>{
  });
 }
 export default function QuickApply({resumeText,sender}:Props){
- const[email,setEmail]=useState(''),[role,setRole]=useState(''),[company,setCompany]=useState(''),[jd,setJd]=useState('');
+ const[email,setEmail]=useState(''),[role,setRole]=useState(''),[company,setCompany]=useState(''),[jd,setJd]=useState(''),[resumeForDraft,setResumeForDraft]=useState(resumeText);
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false);
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
  useEffect(()=>{if(clientId)void loadGoogleScript().catch(()=>{});},[clientId]);
  const match=draft?.match;
- function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText,sender}));setStatus('Review the message carefully before sending. Resume attachment is required.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
+ function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText:resumeForDraft,sender}));setStatus('Review the message carefully before sending. Resume attachment is required.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
  async function send(){
   if(!draft||busy)return;
   if(!clientId){setStatus('Gmail sending is not configured. Set VITE_GOOGLE_CLIENT_ID when deploying.');return;}
@@ -48,21 +48,22 @@ export default function QuickApply({resumeText,sender}:Props){
  }
  const row={display:'grid',gap:6,marginBottom:14} as const;
  const full={width:'100%',padding:12,border:'1px solid #ccd6df',borderRadius:8,background:'transparent',color:'inherit'} as const;
- return <><div className="sectionhead"><div><h1>Quick Apply by Email</h1><p>Paste an opening, tailor the email from your saved resume, attach the actual file and approve sending.</p></div></div>
+ return <><div className="sectionhead"><div><h1>Apply to a Job by Email</h1><p>For your personal job search: paste the email from a job post, choose the role, and prepare your application. Nothing is sent without your approval.</p></div></div>
  <div className="panel" style={{padding:24,maxWidth:900}}>
   <form onSubmit={prepare}>
-   <div style={row}><label htmlFor="qa-to">Recruiter emails (up to 10; comma or semicolon separated) *</label><input id="qa-to" type="text" required value={email} onChange={e=>{setEmail(e.target.value);setDraft(null)}} style={full} placeholder="hr@company.com, hiring@company.com"/></div>
-   <div style={row}><label htmlFor="qa-role">Role or position *</label><input id="qa-role" required value={role} onChange={e=>{setRole(e.target.value);setDraft(null)}} style={full} placeholder="Engineering Manager"/></div>
+   <div style={row}><label htmlFor="qa-to">Email address from the job post *</label><input id="qa-to" type="text" required value={email} onChange={e=>{setEmail(e.target.value);setDraft(null)}} style={full} placeholder="hr@company.com"/></div>
+   <p className="hint">Usually enter one address. If the same post lists multiple addresses, separate them with commas. They will receive one shared email, not separate applications.</p><div style={row}><label htmlFor="qa-role">Role or position *</label><input id="qa-role" required value={role} onChange={e=>{setRole(e.target.value);setDraft(null)}} style={full} placeholder="Engineering Manager"/></div>
    <div style={row}><label htmlFor="qa-company">Company (optional)</label><input id="qa-company" value={company} onChange={e=>{setCompany(e.target.value);setDraft(null)}} style={full} placeholder="Company name"/></div>
-   <div style={row}><label htmlFor="qa-jd">Job description (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>{setJd(e.target.value);setDraft(null)}} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
+   <div style={row}><label htmlFor="qa-jd">Paste job description from the post (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>{setJd(e.target.value);setDraft(null)}} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
+   <div style={row}><label htmlFor="qa-resume-text">Your resume text (for matching the JD)</label><textarea id="qa-resume-text" rows={7} value={resumeForDraft} onChange={e=>{setResumeForDraft(e.target.value);setDraft(null)}} style={full} placeholder="Paste your actual resume text here or use the saved resume from your profile. This is only used to write a relevant draft."/></div>
    <div style={row}><label htmlFor="qa-file">Attach resume (PDF, DOC or DOCX; max 7 MB) *</label><input id="qa-file" type="file" accept=".pdf,.doc,.docx" onChange={e=>setFile(e.target.files?.[0]||null)} style={full}/></div>
-   {!resumeText.trim()&&<p className="hint">Tip: Save your resume text under Resume & profile to personalize applications based on your experience.</p>}
+   <p className="hint">The resume text helps identify relevant experience; the separate resume file is what Gmail attaches. No paid AI service is used.</p>
    <button className="btn primary" type="submit">Generate email draft</button>
   </form>
   {draft&&<section style={{borderTop:'1px solid #ccd6df',marginTop:24,paddingTop:20}}>
    <h2>Review before sending</h2>
    <p><strong>To:</strong> {draft.to} ({draft.recipients.length} recipient(s), one shared email)</p>
-   {match&&<p className="hint">{jd.trim()? 'JD keyword overlap: '+(match.score??'N/A')+'% (not an official ATS score)':'Generic role-specific message'}</p>}
+   {match&&<p className="hint">{jd.trim()? 'Resume/JD keyword overlap: '+(match.score??'N/A')+'% (not an official ATS score)':'Generic role-specific message'}</p>}
    <div style={row}><label htmlFor="qa-subject">Subject</label><input id="qa-subject" style={full} value={draft.subject} onChange={e=>setDraft({...draft,subject:e.target.value})}/></div>
    <div style={row}><label htmlFor="qa-body">Message</label><textarea id="qa-body" style={full} rows={13} value={draft.body} onChange={e=>setDraft({...draft,body:e.target.value})}/></div>
    <p className="hint">Attached resume: {file?.name||'Not selected'}. Only the attached file is sent, not the saved resume text. Gmail account authorization is requested on send; no token is saved.</p>
