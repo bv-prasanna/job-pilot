@@ -1,5 +1,6 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {quickApplyDraft,gmailRawWithAttachment} from './lib/quickApply.mjs';
+import {extractResumeText} from './lib/resume';
 
 type Props={resumeText:string;sender:string};
 type Draft={to:string;recipients:string[];subject:string;body:string;match:{score:number|null;matched:string[];missing:string[]}|null};
@@ -56,8 +57,8 @@ export default function QuickApply({resumeText,sender}:Props){
    <div style={row}><label htmlFor="qa-company">Company (optional)</label><input id="qa-company" value={company} onChange={e=>{setCompany(e.target.value);setDraft(null)}} style={full} placeholder="Company name"/></div>
    <div style={row}><label htmlFor="qa-jd">Paste job description from the post (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>{setJd(e.target.value);setDraft(null)}} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
    <div style={row}><label htmlFor="qa-resume-text">Your resume text (for matching the JD)</label><textarea id="qa-resume-text" rows={7} value={resumeForDraft} onChange={e=>{setResumeForDraft(e.target.value);setDraft(null)}} style={full} placeholder="Paste your actual resume text here or use the saved resume from your profile. This is only used to write a relevant draft."/></div>
-   <div style={row}><label htmlFor="qa-file">Attach resume (PDF, DOC or DOCX; max 7 MB) *</label><input id="qa-file" type="file" accept=".pdf,.doc,.docx" onChange={e=>setFile(e.target.files?.[0]||null)} style={full}/></div>
-   <p className="hint">The resume text helps identify relevant experience; the separate resume file is what Gmail attaches. No paid AI service is used.</p>
+   <div style={row}><label htmlFor="qa-file">Attach resume (PDF, DOC or DOCX; max 7 MB) *</label><input id="qa-file" type="file" accept=".pdf,.doc,.docx" onChange={e=>{const selected=e.target.files?.[0]||null;setFile(selected);setDraft(null);if(selected&&/\.(pdf|docx|txt|md)$/i.test(selected.name)){void extractResumeText(selected).then(text=>{setResumeForDraft(text);setStatus("Resume text extracted locally. Generate your tailored draft.")}).catch(err=>setStatus(err instanceof Error?err.message:"Resume could not be read."));}}} style={full}/></div>
+   <p className="hint">Your PDF/DOCX resume can be read locally to prepare the email. Review the extracted text and draft before sending. No paid AI service is used.</p>
    <button className="btn primary" type="submit">Generate email draft</button>
   </form>
   {draft&&<section style={{borderTop:'1px solid #ccd6df',marginTop:24,paddingTop:20}}>
