@@ -5,7 +5,7 @@ import {quickApplyDraft,parseRecipients} from '../src/lib/quickApply.mjs';
 test('quick apply generates generic message without JD',()=>{
  const d=quickApplyDraft({email:'hr@example.com',role:'Engineering Manager',sender:'Prasanna',resumeText:'Led Java teams'});
  assert.match(d.subject,/Engineering Manager/);
- assert.match(d.body,/resume attached/);
+ assert.match(d.body,/attached my resume/);
  assert.match(d.body,/Prasanna/);
  assert.equal(d.match,null);
 });
