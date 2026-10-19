@@ -2,7 +2,7 @@ import {useEffect,useState,type FormEvent} from 'react';
 import {quickApplyDraft,gmailRawWithAttachment} from './lib/quickApply.mjs';
 
 type Props={resumeText:string;sender:string};
-type Draft={to:string;subject:string;body:string;match:{score:number|null;matched:string[];missing:string[]}|null};
+type Draft={to:string;recipients:string[];subject:string;body:string;match:{score:number|null;matched:string[];missing:string[]}|null};
 declare global {interface Window {google?:{accounts:{oauth2:{initTokenClient:(options:{client_id:string;scope:string;callback:(result:{access_token?:string;error?:string})=>void})=>{requestAccessToken:()=>void}}}}}}
 function loadGoogleScript():Promise<void>{
  if(window.google?.accounts?.oauth2)return Promise.resolve();
@@ -26,7 +26,7 @@ export default function QuickApply({resumeText,sender}:Props){
   if(!draft||busy)return;
   if(!clientId){setStatus('Gmail sending is not configured. Set VITE_GOOGLE_CLIENT_ID when deploying.');return;}
   if(!file){setStatus('Please attach your PDF, DOC or DOCX resume.');return;}
-  if(!window.confirm('Send this email to '+draft.to+' with resume '+file.name+' attached using your Google account?'))return;
+  if(!window.confirm('Send ONE application email to '+draft.recipients.length+' recipient(s): '+draft.to+' with resume '+file.name+' attached using your Google account?'))return;
   setBusy(true);setStatus('Connecting to Gmail securely...');
   try{
    if(!window.google?.accounts?.oauth2)throw Error('Google sign-in is still loading. Please try again.');
@@ -51,7 +51,7 @@ export default function QuickApply({resumeText,sender}:Props){
  return <><div className="sectionhead"><div><h1>Quick Apply by Email</h1><p>Paste an opening, tailor the email from your saved resume, attach the actual file and approve sending.</p></div></div>
  <div className="panel" style={{padding:24,maxWidth:900}}>
   <form onSubmit={prepare}>
-   <div style={row}><label htmlFor="qa-to">Recruiter email *</label><input id="qa-to" type="email" required value={email} onChange={e=>{setEmail(e.target.value);setDraft(null)}} style={full} placeholder="recruiter@company.com"/></div>
+   <div style={row}><label htmlFor="qa-to">Recruiter emails (up to 10; comma or semicolon separated) *</label><input id="qa-to" type="text" required value={email} onChange={e=>{setEmail(e.target.value);setDraft(null)}} style={full} placeholder="hr@company.com, hiring@company.com"/></div>
    <div style={row}><label htmlFor="qa-role">Role or position *</label><input id="qa-role" required value={role} onChange={e=>{setRole(e.target.value);setDraft(null)}} style={full} placeholder="Engineering Manager"/></div>
    <div style={row}><label htmlFor="qa-company">Company (optional)</label><input id="qa-company" value={company} onChange={e=>{setCompany(e.target.value);setDraft(null)}} style={full} placeholder="Company name"/></div>
    <div style={row}><label htmlFor="qa-jd">Job description (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>{setJd(e.target.value);setDraft(null)}} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
@@ -61,7 +61,7 @@ export default function QuickApply({resumeText,sender}:Props){
   </form>
   {draft&&<section style={{borderTop:'1px solid #ccd6df',marginTop:24,paddingTop:20}}>
    <h2>Review before sending</h2>
-   <p><strong>To:</strong> {draft.to}</p>
+   <p><strong>To:</strong> {draft.to} ({draft.recipients.length} recipient(s), one shared email)</p>
    {match&&<p className="hint">{jd.trim()? 'JD keyword overlap: '+(match.score??'N/A')+'% (not an official ATS score)':'Generic role-specific message'}</p>}
    <div style={row}><label htmlFor="qa-subject">Subject</label><input id="qa-subject" style={full} value={draft.subject} onChange={e=>setDraft({...draft,subject:e.target.value})}/></div>
    <div style={row}><label htmlFor="qa-body">Message</label><textarea id="qa-body" style={full} rows={13} value={draft.body} onChange={e=>setDraft({...draft,body:e.target.value})}/></div>
