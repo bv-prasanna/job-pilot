@@ -4,7 +4,7 @@ export async function extractResumeText(file:File):Promise<string>{
  const name=file.name.toLowerCase();
  if(/\.(txt|md)$/i.test(name))return (await file.text()).slice(0,60000);
  if(name.endsWith('.docx')){
-  const mammoth=await import('mammoth/mammoth.browser');
+  const mammoth=await import('mammoth');
   const result=await mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()});
   if(!result.value?.trim())throw Error('No readable text in this DOCX. Paste the resume text manually.');
   return result.value.slice(0,60000);
