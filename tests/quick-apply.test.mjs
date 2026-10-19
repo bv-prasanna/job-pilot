@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {quickApplyDraft,parseRecipients} from '../src/lib/quickApply.mjs';
+import {quickApplyDraft,parseRecipients,gmailRawWithAttachment} from '../src/lib/quickApply.mjs';
 
 test('quick apply generates generic message without JD',()=>{
  const d=quickApplyDraft({email:'hr@example.com',role:'Engineering Manager',sender:'Prasanna',resumeText:'Led Java teams'});
@@ -44,4 +44,20 @@ test('JD evidence changes message content based on the actual resume',()=>{
  assert.match(second.body,/Kubernetes/);
  assert.match(second.body,/Kafka/);
  assert.notEqual(first.body,second.body);
+});
+
+test('Gmail MIME includes multiple recipients and actual PDF attachment',async()=>{
+ const bytes=Buffer.from('%PDF-1.4 example');
+ const file={name:'resume.pdf',size:bytes.length,arrayBuffer:async()=>Uint8Array.from(bytes).buffer};
+ const raw=await gmailRawWithAttachment({to:'a@example.com,b@example.com',subject:'Engineering Manager',body:'Please find my resume attached.',file});
+ const mime=Buffer.from(raw,'base64url').toString('utf8');
+ assert.match(mime,/To: a@example.com, b@example.com/);
+ assert.match(mime,/filename="resume.pdf"/);
+ assert.match(mime,/multipart\/mixed/);
+ assert.match(mime,/JVBERi0xLjQ/);
+});
+test('Gmail MIME rejects invalid email lists and oversized resume',async()=>{
+ const file={name:'resume.pdf',size:10,arrayBuffer:async()=>new Uint8Array([1,2,3]).buffer};
+ await assert.rejects(gmailRawWithAttachment({to:'invalid, a@example.com',subject:'Test',body:'Hi',file}),/valid email/);
+ await assert.rejects(gmailRawWithAttachment({to:'a@example.com',subject:'Test',body:'Hi',file:{...file,size:8*1024*1024}}),/smaller than 7/);
 });
