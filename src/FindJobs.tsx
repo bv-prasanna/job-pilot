@@ -1,12 +1,11 @@
 import {useMemo,useState} from 'react';
 import {matchResume} from './lib/core.mjs';
-import {extractResumeText} from './lib/resume';
 
 type Job={id:string;title:string;company:string;location:string;description:string;url:string;salary:string;posted:string;source:string};
 const plain=(s:string)=>s.replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
 const searchUrl='/api/job-search';
 export default function FindJobs({resumeText,onSave}:{resumeText:string;onSave:(job:Job)=>void}){
- const[resume,setResume]=useState(resumeText),[query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
+ const resume=resumeText;const[query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
  const[busy,setBusy]=useState(false),[error,setError]=useState(''),[searched,setSearched]=useState(false);
  const[onlyRelevant,setOnlyRelevant]=useState(true);
  const ranked=useMemo(()=>jobs.map(job=>({...job,match:matchResume(resume,job.description,job.title)})).sort((a,b)=>(b.match.score??-1)-(a.match.score??-1)),[jobs,resume]);
@@ -29,16 +28,11 @@ export default function FindJobs({resumeText,onSave}:{resumeText:string;onSave:(
   }catch(e){setError(e instanceof Error?e.message:'Search failed.');}
   finally{setBusy(false);}
  }
- async function readResume(file:File|undefined){
-  if(!file)return;
-  try{const text=await extractResumeText(file);setResume(text);setError('');}
-  catch(e){setError(e instanceof Error?e.message:'Unable to read resume');}
- }
+
  return <><div className="sectionhead"><div><h1>Find jobs for me</h1><p>Personal job search from public listings. Compare openings with your resume, save interesting jobs, and apply on the employer site.</p></div></div>
  <section className="panel" style={{padding:24}}>
   <div className="field"><label className="field-label" htmlFor="jf-role">Search role or keywords</label><input id="jf-role" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Engineering Manager, Java Lead, Backend Manager" /></div>
-  <div className="field"><label className="field-label" htmlFor="jf-upload">Upload resume (PDF, DOCX, TXT or MD)</label><input id="jf-upload" type="file" accept=".pdf,.docx,.txt,.md" onChange={e=>void readResume(e.target.files?.[0])}/></div>
-  <div className="field"><label className="field-label" htmlFor="jf-resume">Or paste / edit resume text</label><textarea id="jf-resume" rows={6} value={resume} onChange={e=>setResume(e.target.value.slice(0,60000))} placeholder="Paste your resume text to see keyword alignment with each job." /></div>
+  <p className="hint">Matching automatically uses your saved Resume &amp; profile. You only need to upload or change it there once.</p>
   <p className="hint">Only the search keywords are sent to the jobs source through a Cloudflare Pages Function. Your resume stays in this browser; the displayed score is keyword overlap, not an ATS score. Listings may have geographic restrictions.</p>
   <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}><button className="btn primary" disabled={busy} onClick={()=>void search()}>{busy?'Searching...':'Search open jobs'}</button><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={onlyRelevant} onChange={e=>setOnlyRelevant(e.target.checked)}/> Filter low matches</label></div>
   {error&&<p role="alert" style={{marginTop:12}}>{error}</p>}
