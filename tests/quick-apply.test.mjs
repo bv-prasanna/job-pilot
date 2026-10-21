@@ -5,7 +5,7 @@ import {quickApplyDraft,parseRecipients,gmailRawWithAttachment} from '../src/lib
 test('quick apply generates generic message without JD',()=>{
  const d=quickApplyDraft({email:'hr@example.com',role:'Engineering Manager',sender:'Prasanna',resumeText:'Led Java teams'});
  assert.match(d.subject,/Engineering Manager/);
- assert.match(d.body,/attached my resume/);
+ assert.match(d.body,/resume attached/);
  assert.match(d.body,/Prasanna/);
  assert.equal(d.match,null);
 });
@@ -70,4 +70,15 @@ test('defaults signature to personal name rather than Applicant',()=>{
 test('saved profile name takes precedence in personal signature',()=>{
  const d=quickApplyDraft({email:'hr@example.com',role:'Java Lead',sender:'Prasanna Kumar BV'});
  assert.match(d.body,/Best regards,\nPrasanna Kumar BV$/);
+});
+
+test('senior application reads professionally, addresses recipient, and includes contact details',()=>{
+ const d=quickApplyDraft({email:'recruiter@example.com',recipientName:'Amol',role:'Engineering Manager',company:'Example',jd:'Seeking Java and Spring Boot delivery leadership',resumeText:'Led Java Spring Boot engineering teams'});
+ assert.match(d.body,/Hi Amol,/);
+ assert.match(d.body,/technical leadership/);
+ assert.match(d.body,/Java/);
+ assert.match(d.body,/Spring Boot/);
+ assert.match(d.body,/9844274556/);
+ assert.match(d.body,/bv.prasannakumar@gmail.com/);
+ assert.match(d.body,/www.linkedin.com\/in\/prasannakumarbv/);
 });
