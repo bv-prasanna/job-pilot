@@ -8,7 +8,7 @@ export default function FindJobs({resumeText,onSave}:{resumeText:string;onSave:(
  const resume=resumeText;const[query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
  const[busy,setBusy]=useState(false),[error,setError]=useState(''),[searched,setSearched]=useState(false);
  const[onlyRelevant,setOnlyRelevant]=useState(false);
- const ranked=useMemo(()=>{const terms=query.toLowerCase().split(/\\s+/).filter(Boolean);return jobs.map(job=>{const match=matchResume(resume,job.description,job.title);const title=job.title.toLowerCase();const titleHits=terms.filter(t=>title.includes(t)).length;const relevance=titleHits*100+(title.includes(query.trim().toLowerCase())?150:0)+(match.score??0);return {...job,match,relevance}}).sort((a,b)=>b.relevance-a.relevance)},[jobs,resume,query]);
+ const ranked=useMemo(()=>{const terms=query.toLowerCase().split(/\s+/).filter(Boolean);return jobs.map(job=>{const match=matchResume(resume,job.description,job.title);const title=job.title.toLowerCase();const titleHits=terms.filter(t=>title.includes(t)).length;const relevance=titleHits*100+(title.includes(query.trim().toLowerCase())?150:0)+(match.score??0);return {...job,match,relevance}}).sort((a,b)=>b.relevance-a.relevance)},[jobs,resume,query]);
  const visible=onlyRelevant?ranked.filter(j=>j.match.score===null||j.match.score>=15):ranked;
  async function search(){
   if(busy)return;
