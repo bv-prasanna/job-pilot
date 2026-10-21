@@ -35,3 +35,28 @@ test('job-search returns partial results when one source fails',async()=>{
   assert.ok(data.errors.includes('Himalayas unavailable'));
  }finally{globalThis.fetch=original;}
 });
+
+test('fetches public Greenhouse, Lever and Ashby job boards',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async url=>{
+  const u=String(url);
+  let body={jobs:[]};
+  if(u.includes('boards-api.greenhouse.io'))body={jobs:[{id:12,title:'Engineering Manager',absolute_url:'https://boards.greenhouse.io/demo/jobs/12',content:'Java',location:{name:'Bengaluru'}}]};
+  if(u.includes('api.lever.co'))body=[{id:'l1',text:'Java Lead',hostedUrl:'https://jobs.lever.co/demo/l1',descriptionPlain:'Java',categories:{location:'India'}}];
+  if(u.includes('api.ashbyhq.com'))body={jobs:[{id:'a1',title:'Backend Manager',jobUrl:'https://jobs.ashbyhq.com/demo/a1',descriptionPlain:'Microservices',location:'Remote'}]};
+  return {ok:true,text:async()=>JSON.stringify(body)};
+ };
+ try{
+  const res=await onRequestGet({request:new Request('https://example.com/api/job-search?search=Manager&boards=greenhouse:demo,lever:demo,ashby:demo')});
+  const json=await res.json();
+  assert.equal(res.status,200);
+  assert.equal(json.jobs.length,3);
+  assert.ok(json.sources.includes('greenhouse:demo'));
+  assert.ok(json.sources.includes('lever:demo'));
+  assert.ok(json.sources.includes('ashby:demo'));
+ }finally{globalThis.fetch=original;}
+});
+test('rejects invalid or missing search terms',async()=>{
+ const res=await onRequestGet({request:new Request('https://example.com/api/job-search')});
+ assert.equal(res.status,400);
+});
