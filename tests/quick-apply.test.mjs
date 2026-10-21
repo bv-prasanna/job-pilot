@@ -61,3 +61,13 @@ test('Gmail MIME rejects invalid email lists and oversized resume',async()=>{
  await assert.rejects(gmailRawWithAttachment({to:'invalid, a@example.com',subject:'Test',body:'Hi',file}),/valid email/);
  await assert.rejects(gmailRawWithAttachment({to:'a@example.com',subject:'Test',body:'Hi',file:{...file,size:8*1024*1024}}),/smaller than 7/);
 });
+
+test('defaults signature to personal name rather than Applicant',()=>{
+ const d=quickApplyDraft({email:'hr@example.com',role:'Engineering Manager'});
+ assert.match(d.body,/Best regards,\nPrasanna Kumar$/);
+ assert.doesNotMatch(d.body,/Applicant/);
+});
+test('saved profile name takes precedence in personal signature',()=>{
+ const d=quickApplyDraft({email:'hr@example.com',role:'Java Lead',sender:'Prasanna Kumar BV'});
+ assert.match(d.body,/Best regards,\nPrasanna Kumar BV$/);
+});
