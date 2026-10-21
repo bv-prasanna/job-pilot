@@ -18,14 +18,14 @@ function loadGoogleScript():Promise<void>{
  });
 }
 export default function QuickApply({resumeText,sender}:Props){
- const[email,setEmail]=useState(''),[role,setRole]=useState(''),[company,setCompany]=useState(''),[jd,setJd]=useState(''),[resumeForDraft,setResumeForDraft]=useState(resumeText);
+ const[email,setEmail]=useState(''),[role,setRole]=useState(''),[recipientName,setRecipientName]=useState(''),[company,setCompany]=useState(''),[jd,setJd]=useState(''),[resumeForDraft,setResumeForDraft]=useState(resumeText);
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false);
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
  useEffect(()=>{if(clientId)void loadGoogleScript().catch(()=>{});},[clientId]);
  useEffect(()=>{let active=true;void getResumeFile().then(saved=>{if(active&&saved){setFile(saved);setStatus('Saved resume ready: '+saved.name+'. You do not need to upload it again.');}}).catch(()=>{});return()=>{active=false};},[]);
  useEffect(()=>{setResumeForDraft(resumeText);setDraft(null)},[resumeText]);
  const match=draft?.match;
- function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText:resumeForDraft,sender}));setStatus('Review the message carefully before sending. Resume attachment is required.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
+ function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText:resumeForDraft,sender,recipientName}));setStatus('Review the message carefully before sending. Resume attachment is required.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
  async function send(){
   if(!draft||busy)return;
   if(!clientId){setStatus('Gmail sending is not configured. Set VITE_GOOGLE_CLIENT_ID when deploying.');return;}
@@ -56,6 +56,7 @@ export default function QuickApply({resumeText,sender}:Props){
  <div className="panel" style={{padding:24,maxWidth:900}}>
   <form onSubmit={prepare}>
    <div style={row}><label htmlFor="qa-to">Email address from the job post *</label><input id="qa-to" type="text" required value={email} onChange={e=>{setEmail(e.target.value);setDraft(null)}} style={full} placeholder="hr@company.com"/></div>
+   <div style={row}><label htmlFor="qa-contact">Contact name (optional)</label><input id="qa-contact" value={recipientName} onChange={e=>{setRecipientName(e.target.value);setDraft(null)}} style={full} placeholder="Amol"/></div>
    <p className="hint">Usually enter one address. If the same post lists multiple addresses, separate them with commas. They will receive one shared email, not separate applications.</p><div style={row}><label htmlFor="qa-role">Role or position *</label><input id="qa-role" required value={role} onChange={e=>{setRole(e.target.value);setDraft(null)}} style={full} placeholder="Engineering Manager"/></div>
    <div style={row}><label htmlFor="qa-company">Company (optional)</label><input id="qa-company" value={company} onChange={e=>{setCompany(e.target.value);setDraft(null)}} style={full} placeholder="Company name"/></div>
    <div style={row}><label htmlFor="qa-jd">Paste job description from the post (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>{setJd(e.target.value);setDraft(null)}} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
