@@ -12,27 +12,33 @@ function has(text,term){return new RegExp('(^|[^a-z0-9])'+term.replace(/[.*+?^${
 function evidence(jd,resume){
  return EVIDENCE.filter(([term])=>has(jd,term)&&has(resume,term)).map(([,display])=>display).slice(0,5);
 }
-export function quickApplyDraft({email,role,company='',jd='',resumeText='',sender=''}={}){
+export function quickApplyDraft({email,role,company='',jd='',resumeText='',sender='',recipientName=''}={}){
  const recipients=parseRecipients(email);
  const title=clean(role,160);if(!title)throw Error('Enter the role or position');
  const organization=clean(company,160),target=organization?' at '+organization:'';
  const description=clean(jd,18000),resume=clean(resumeText,60000);
  const fit=description&&resume?matchResume(resume,description,title):null;
  const skills=evidence(description||title,resume);
- let paragraph;
- if(description&&skills.length){
-   paragraph='The position emphasizes '+skills.slice(0,3).join(', ')+'. My resume documents experience in these areas, and I would welcome the opportunity to apply that background to the role.';
- }else if(description&&resume){
-   paragraph='I reviewed the responsibilities in the posting. My attached resume outlines my experience and career progression; I would appreciate an opportunity to discuss where it aligns with your team’s needs.';
- }else if(description){
-   paragraph='I reviewed the job description and am interested in being considered. My attached resume provides my background for your evaluation.';
- }else if(resume){
-   paragraph='My attached resume outlines my professional experience and skills for your consideration.';
- }else{
-   paragraph='Please review my attached resume for details of my experience and qualifications.';
- }
- const opening=description?'I am applying for the '+title+' opportunity'+target+' following the opening you shared.':'I saw your post about the '+title+' opening'+target+' and would like to apply.';
- const body='Hello,\n\n'+opening+'\n\n'+paragraph+'\n\nI have attached my resume for your review. I would be glad to discuss the opportunity further.\n\nThank you for your consideration.\n\nBest regards,\n'+(clean(sender,100)||'Prasanna Kumar');
+ const recruiter=clean(recipientName,80).replace(/[\r\n<>]/g,'').trim();
+ const greeting=recruiter?'Hi '+recruiter+',':'Hello,';
+ const senior=/manager|lead|director|head|architect/i.test(title);
+ const intro=senior
+  ?'With a background spanning software engineering, technical leadership, and the delivery of complex platforms, I am keen to contribute to a team that values engineering quality, clear execution, and collaboration.'
+  :'I bring a strong interest in solving meaningful engineering problems, delivering reliable software, and collaborating across teams.';
+ const technical=skills.length
+  ?'After reviewing the requirements, I see particularly relevant alignment with '+skills.slice(0,4).join(', ')+'. These capabilities are reflected in my resume, and I would welcome the opportunity to discuss the specific projects and outcomes behind them.'
+  :description&&resume
+  ?'Having reviewed the position, I believe my broader engineering and delivery background merits a conversation about the team’s priorities. My resume provides details of the work I have undertaken.'
+  :resume
+  ?'My resume outlines the technologies, responsibilities, and project experience I would bring to the position. I would be pleased to discuss the most relevant examples with you.'
+  :'I would appreciate the opportunity to discuss how my background aligns with your requirements.';
+ const body=greeting+'\n\nI hope this message finds you well.\n\n'
+  +'I am writing to express my interest in the '+title+' position'+target+'. '+intro
+  +'\n\n'+technical
+  +'\n\nPlease find my resume attached for your reference. I would welcome the opportunity to discuss how my experience can contribute to your organisation’s goals.'
+  +'\n\nThank you for considering my application. I look forward to the possibility of connecting further.'
+  +'\n\nWarm regards,\n'+(clean(sender,100)||'Prasanna Kumar BV')
+  +'\n9844274556 | bv.prasannakumar@gmail.com | www.linkedin.com/in/prasannakumarbv';
  return {to:recipients.join(', '),recipients,subject:'Application for '+title+target,body,match:fit};
 }
 const base64=bytes=>{let out='';for(let i=0;i<bytes.length;i+=8192)out+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(out);};
