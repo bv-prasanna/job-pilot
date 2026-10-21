@@ -7,9 +7,9 @@ const searchUrl='/api/job-search';
 export default function FindJobs({resumeText,onSave}:{resumeText:string;onSave:(job:Job)=>void}){
  const resume=resumeText;const[query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
  const[busy,setBusy]=useState(false),[error,setError]=useState(''),[searched,setSearched]=useState(false);
- const[onlyRelevant,setOnlyRelevant]=useState(false);const[location,setLocation]=useState('India / Bengaluru / Remote');const[boards,setBoards]=useState('');
+ const[onlyRelevant,setOnlyRelevant]=useState(false);const[location,setLocation]=useState('');const[boards,setBoards]=useState('');
  const ranked=useMemo(()=>{const terms=query.toLowerCase().split(/\s+/).filter(Boolean);return jobs.map(job=>{const match=matchResume(resume,job.description,job.title);const title=job.title.toLowerCase();const titleHits=terms.filter(t=>title.includes(t)).length;const relevance=titleHits*100+(title.includes(query.trim().toLowerCase())?150:0)+(match.score??0);return {...job,match,relevance}}).sort((a,b)=>b.relevance-a.relevance)},[jobs,resume,query]);
- const locationTerms=location.toLowerCase().split(/[,/]+/).map(v=>v.trim()).filter(Boolean);const filtered=ranked.filter(j=>!locationTerms.length||locationTerms.some(v=>v==='remote'||v==='anywhere'||(j.location+' '+j.description.slice(0,250)).toLowerCase().includes(v)));const visible=onlyRelevant?filtered.filter(j=>j.match.score===null||j.match.score>=15):filtered;
+ const locationTerms=location.toLowerCase().split(/[,/]+/).map(v=>v.trim()).filter(Boolean);const filtered=ranked.filter(j=>!locationTerms.length||locationTerms.some(v=>v==='anywhere'||(v==='remote'&&/remote|worldwide/i.test(j.location))||(j.location+' '+j.description.slice(0,250)).toLowerCase().includes(v)));const visible=onlyRelevant?filtered.filter(j=>j.match.score===null||j.match.score>=15):filtered;
  async function search(){
   if(busy)return;
   setBusy(true);setError('');setSearched(false);
