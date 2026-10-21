@@ -32,7 +32,7 @@ export function quickApplyDraft({email,role,company='',jd='',resumeText='',sende
    paragraph='Please review my attached resume for details of my experience and qualifications.';
  }
  const opening=description?'I am applying for the '+title+' opportunity'+target+' following the opening you shared.':'I saw your post about the '+title+' opening'+target+' and would like to apply.';
- const body='Hello,\n\n'+opening+'\n\n'+paragraph+'\n\nI have attached my resume for your review. I would be glad to discuss the opportunity further.\n\nThank you for your consideration.\n\nBest regards,\n'+(clean(sender,100)||'Applicant');
+ const body='Hello,\n\n'+opening+'\n\n'+paragraph+'\n\nI have attached my resume for your review. I would be glad to discuss the opportunity further.\n\nThank you for your consideration.\n\nBest regards,\n'+(clean(sender,100)||'Prasanna Kumar');
  return {to:recipients.join(', '),recipients,subject:'Application for '+title+target,body,match:fit};
 }
 const base64=bytes=>{let out='';for(let i=0;i<bytes.length;i+=8192)out+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(out);};
