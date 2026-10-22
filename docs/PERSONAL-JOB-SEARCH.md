@@ -26,3 +26,7 @@ Run `npm run check` locally, verify the new screen in Cloudflare Pages, exercise
 - More authorized public/partner job feeds with location and remote filters, including India/Bengaluru sources where permitted.
 - Better evidence-grounded JD matching and structured explanations.
 - Save a verified application's confirmation and status; avoid duplicate submissions.
+
+## Cloudflare deployment note (2026-10-22)
+
+Cloudflare Pages project `job-pilot` deploys production branch `main` to `jobs.bvprasanna.com`. The custom domain is active with SSL. If a new GitHub commit does not appear in Cloudflare Deployments, check and restore the project's GitHub App integration: redeploying an older commit does not include the latest code. The `Manual quality check` GitHub Actions workflow is optional and is not used for Cloudflare deployment.
