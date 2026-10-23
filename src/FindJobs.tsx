@@ -1,5 +1,6 @@
 import {useMemo,useState} from 'react';
 import {matchResume} from './lib/core.mjs';
+import {titleRelevance} from './lib/titleRelevance.mjs';
 
 type Job={id:string;title:string;company:string;location:string;description:string;url:string;salary:string;posted:string;source:string};
 const plain=(s:string)=>s.replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
@@ -8,7 +9,7 @@ export default function FindJobs({resumeText,onSave}:{resumeText:string;onSave:(
  const resume=resumeText;const[query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
  const[busy,setBusy]=useState(false),[error,setError]=useState(''),[searched,setSearched]=useState(false);
  const[onlyRelevant,setOnlyRelevant]=useState(false);const[location,setLocation]=useState('');const[boards,setBoards]=useState('');
- const ranked=useMemo(()=>{const terms=query.toLowerCase().split(/\s+/).filter(Boolean);return jobs.map(job=>{const match=matchResume(resume,job.description,job.title);const title=job.title.toLowerCase();const titleHits=terms.filter(t=>title.includes(t)).length;const relevance=titleHits*100+(title.includes(query.trim().toLowerCase())?150:0)+(match.score??0);return {...job,match,relevance}}).sort((a,b)=>b.relevance-a.relevance)},[jobs,resume,query]);
+ const ranked=useMemo(()=>jobs.map(job=>{const match=matchResume(resume,job.description,job.title);const occupation=titleRelevance(query,job.title);return {...job,match,occupation,relevance:occupation*100+(match.score??0)}}).filter(j=>j.occupation>0).sort((a,b)=>b.relevance-a.relevance),[jobs,resume,query]);
  const locationTerms=location.toLowerCase().split(/[,/]+/).map(v=>v.trim()).filter(Boolean);const filtered=ranked.filter(j=>!locationTerms.length||locationTerms.some(v=>v==='anywhere'||(v==='remote'&&/remote|worldwide/i.test(j.location))||(j.location+' '+j.description.slice(0,250)).toLowerCase().includes(v)));const visible=onlyRelevant?filtered.filter(j=>j.match.score===null||j.match.score>=15):filtered;
  async function search(){
   if(busy)return;
@@ -36,12 +37,15 @@ export default function FindJobs({resumeText,onSave}:{resumeText:string;onSave:(
   <div className="field"><label className="field-label" htmlFor="jf-boards">Optional company ATS boards</label><input id="jf-boards" value={boards} onChange={e=>setBoards(e.target.value)} placeholder="greenhouse:company-board, lever:company-board, ashby:company-board"/></div>
   <p className="hint">The board field accepts public Greenhouse, Lever or Ashby board identifiers from companies you want to follow. No accounts or paid keys are needed to read their published postings.</p>
   <p className="hint">Matching automatically uses your saved Resume &amp; profile. You only need to upload or change it there once.</p>
+  <p className="hint">Only matching job titles are shown; unrelated occupations are excluded before resume scoring.</p>
+  <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}><a className="btn outline" href={"https://www.google.com/search?q="+encodeURIComponent(query+" jobs "+(location||"Bengaluru India"))} target="_blank" rel="noopener noreferrer">Search Google Jobs ↗</a><a className="btn outline" href={"https://www.linkedin.com/jobs/search/?keywords="+encodeURIComponent(query)+"&location="+encodeURIComponent(location||"Bengaluru, Karnataka, India")} target="_blank" rel="noopener noreferrer">Search LinkedIn Jobs ↗</a></div>
+  <p className="hint">Google and LinkedIn links open their own live job searches; they are not imported or counted as JobPilot results. Applications are free where the employer permits.</p>
   <p className="hint">Only the search keywords are sent to the jobs source through a Cloudflare Pages Function. Your resume stays in this browser; the displayed score is keyword overlap, not an ATS score. Listings may have geographic restrictions.</p>
   <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}><button className="btn primary" disabled={busy} onClick={()=>void search()}>{busy?'Searching...':'Search open jobs'}</button><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={onlyRelevant} onChange={e=>setOnlyRelevant(e.target.checked)}/> Hide low resume overlaps</label></div>
   {error&&<p role="alert" style={{marginTop:12}}>{error}</p>}
  </section>
  {searched&&<section className="panel" style={{padding:24,marginTop:18}}><h2>{visible.length} jobs found</h2>
-  <p className="hint">Sources: <a href="https://remotive.com/" target="_blank" rel="noreferrer">Remotive</a> and <a href="https://himalayas.app/" target="_blank" rel="noreferrer">Himalayas</a>. Remote roles may have country restrictions; check each listing before applying.</p>
+  <p className="hint">Imported public listings: <a href="https://remotive.com/" target="_blank" rel="noreferrer">Remotive</a> and <a href="https://himalayas.app/" target="_blank" rel="noreferrer">Himalayas</a>. Remote roles may have country restrictions; check each listing before applying.</p>
   {!resume.trim()&&<p className="hint">Add your resume text above to calculate matches.</p>}
   {visible.map(j=><article key={j.id} style={{padding:'16px 0',borderBottom:'1px solid #dce6eb'}}>
    <h3 style={{marginBottom:6}}>{j.title}</h3><p>{j.company} · {j.location} · {j.source}{j.salary?' · '+j.salary:''}</p>
@@ -52,7 +56,7 @@ export default function FindJobs({resumeText,onSave}:{resumeText:string;onSave:(
     <button className="btn outline" onClick={()=>onSave(j)}>Save to my jobs</button>
    </div>
   </article>)}
-  {!visible.length&&<p>No jobs meet these filters. Clear the location preferences or disable low-match filtering.</p>}
+  {!visible.length&&<p>No matching job titles were found from the connected public feeds. Try the Google Jobs or LinkedIn Jobs links above, or adjust your search terms.</p>}
  </section>}
  </>;
 }
