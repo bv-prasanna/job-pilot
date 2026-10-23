@@ -2,8 +2,8 @@ import {useState} from 'react';
 import {extractResumeText} from './lib/resume';
 import {saveResumeFile} from './lib/resumeStore';
 import type {ResumeVersion} from './lib/model';
-type Props={resumes:ResumeVersion[];currentText:string;onAdd:(resume:ResumeVersion,makeDefault:boolean)=>void;onSelect:(id:string)=>void;onDelete:(id:string)=>void;onEdit:(id:string,text:string)=>void};
-export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onDelete,onEdit}:Props){
+type Props={resumes:ResumeVersion[];currentText:string;onAdd:(resume:ResumeVersion,makeDefault:boolean)=>void;onSelect:(id:string)=>void;onDelete:(id:string)=>void};
+export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onDelete}:Props){
  const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[name,setName]=useState(''),[text,setText]=useState(''),[makeDefault,setMakeDefault]=useState(true);
  async function upload(file?:File){
   if(!file)return;
