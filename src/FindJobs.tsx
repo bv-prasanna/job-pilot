@@ -5,8 +5,11 @@ import {titleRelevance} from './lib/titleRelevance.mjs';
 type Job={id:string;title:string;company:string;location:string;description:string;url:string;salary:string;posted:string;source:string};
 const plain=(s:string)=>s.replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
 const searchUrl='/api/job-search';
-export default function FindJobs({resumeText,onSave}:{resumeText:string;onSave:(job:Job)=>void}){
- const resume=resumeText;const[query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
+type SavedResume={id:string;name:string;text:string;updatedAt:string};
+export default function FindJobs({resumeText,savedResumes,onSave}:{resumeText:string;savedResumes:SavedResume[];onSave:(job:Job)=>void}){
+ const [selectedResume,setSelectedResume]=useState('profile');
+ const resume=selectedResume==='profile'?resumeText:(savedResumes.find(v=>v.id===selectedResume)?.text||resumeText);
+ const selectedName=selectedResume==='profile'?'Current profile resume':(savedResumes.find(v=>v.id===selectedResume)?.name||'Current profile resume');const[query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
  const[busy,setBusy]=useState(false),[error,setError]=useState(''),[searched,setSearched]=useState(false);
  const[onlyRelevant,setOnlyRelevant]=useState(false);const[location,setLocation]=useState('');const[boards,setBoards]=useState('');
  const ranked=useMemo(()=>jobs.map(job=>{const match=matchResume(resume,job.description,job.title);const occupation=titleRelevance(query,job.title);return {...job,match,occupation,relevance:occupation*100+(match.score??0)}}).filter(j=>j.occupation>0).sort((a,b)=>b.relevance-a.relevance),[jobs,resume,query]);
@@ -33,10 +36,11 @@ export default function FindJobs({resumeText,onSave}:{resumeText:string;onSave:(
  return <><div className="sectionhead"><div><h1>Find jobs for me</h1><p>Personal job search from public listings. Compare openings with your resume, save interesting jobs, and apply on the employer site.</p></div></div>
  <section className="panel" style={{padding:24}}>
   <div className="field"><label className="field-label" htmlFor="jf-role">Search role or keywords</label><input id="jf-role" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Engineering Manager, Java Lead, Backend Manager" /></div>
+  <div className="field"><label className="field-label" htmlFor="jf-resume">Resume used for matching</label><select id="jf-resume" value={selectedResume} onChange={e=>{setSelectedResume(e.target.value);setSearched(false)}}><option value="profile">Current profile resume</option>{savedResumes.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}</select><p className="hint">Using: <strong>{selectedName}</strong> ({resume.length.toLocaleString()} characters). {resume.trim()?"You can continue searching or choose another saved resume.":"No resume text saved yet; add one under Resume & profile."} Uploaded resumes are available here until you remove browser data.</p></div>
   <div className="field"><label className="field-label" htmlFor="jf-location">Location preferences (comma-separated; leave empty for all)</label><input id="jf-location" value={location} onChange={e=>setLocation(e.target.value)} placeholder="India, Bengaluru, Remote"/></div>
   <div className="field"><label className="field-label" htmlFor="jf-boards">Optional company ATS boards</label><input id="jf-boards" value={boards} onChange={e=>setBoards(e.target.value)} placeholder="greenhouse:company-board, lever:company-board, ashby:company-board"/></div>
   <p className="hint">The board field accepts public Greenhouse, Lever or Ashby board identifiers from companies you want to follow. No accounts or paid keys are needed to read their published postings.</p>
-  <p className="hint">Matching automatically uses your saved Resume &amp; profile. You only need to upload or change it there once.</p>
+  <p className="hint">JobPilot reuses your selected saved resume. Import additional resume versions under Resume &amp; profile when needed.</p>
   <p className="hint">Only matching job titles are shown; unrelated occupations are excluded before resume scoring.</p>
   <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}><a className="btn outline" href={"https://www.google.com/search?q="+encodeURIComponent(query+" jobs "+(location||"Bengaluru India"))} target="_blank" rel="noopener noreferrer">Search Google Jobs ↗</a><a className="btn outline" href={"https://www.linkedin.com/jobs/search/?keywords="+encodeURIComponent(query)+"&location="+encodeURIComponent(location||"Bengaluru, Karnataka, India")} target="_blank" rel="noopener noreferrer">Search LinkedIn Jobs ↗</a></div>
   <p className="hint">Google and LinkedIn links open their own live job searches; they are not imported or counted as JobPilot results. Applications are free where the employer permits.</p>
