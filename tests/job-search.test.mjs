@@ -77,3 +77,24 @@ test('job search filters unrelated job titles before returning results',async()=
   assert.deepEqual(data.jobs.map(j=>j.title),['Civil Engineer']);
  }finally{globalThis.fetch=original;}
 });
+
+test('server drops Brazil-only jobs before capping results, but preserves India and worldwide roles',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async url=>{
+  const link=String(url);
+  const body=link.includes('remotive.com')?{jobs:[
+   {id:1,title:'Engineering Manager - Remote within Brazil',company_name:'Brazil Co',candidate_required_location:'Brazil',url:'https://remotive.com/remote-jobs/brazil'},
+   {id:2,title:'Engineering Manager India',company_name:'India Co',candidate_required_location:'India',url:'https://remotive.com/remote-jobs/india'},
+   {id:3,title:'Engineering Manager Global',company_name:'Global Co',candidate_required_location:'Worldwide',url:'https://remotive.com/remote-jobs/worldwide'}
+  ]}:{jobs:[]};
+  return {ok:true,text:async()=>JSON.stringify(body)};
+ };
+ try{
+  const response=await onRequestGet({request:new Request('https://example.com/api/job-search?search=Engineering%20Manager')});
+  const result=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(result.excludedCount,1);
+  assert.deepEqual(result.jobs.map(j=>j.location).sort(),['India','Worldwide']);
+  assert.ok(result.jobs.every(j=>j.eligibility.status==='eligible'));
+ }finally{globalThis.fetch=original;}
+});
