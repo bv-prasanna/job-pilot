@@ -11,6 +11,7 @@ export default function FindJobs({resumeText,savedResumes,onSave}:{resumeText:st
  const resume=selectedResume==='profile'?resumeText:(savedResumes.find(v=>v.id===selectedResume)?.text||resumeText);
  const selectedName=selectedResume==='profile'?'Current profile resume':(savedResumes.find(v=>v.id===selectedResume)?.name||'Current profile resume');const[query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
  const[busy,setBusy]=useState(false),[error,setError]=useState(''),[searched,setSearched]=useState(false);
+ const [sourceCounts,setSourceCounts]=useState<Record<string,number>>({}),[sourceErrors,setSourceErrors]=useState<string[]>([]);
  const[onlyRelevant,setOnlyRelevant]=useState(false);const[location,setLocation]=useState('');const[boards,setBoards]=useState('');
  const ranked=useMemo(()=>jobs.map(job=>{const match=matchResume(resume,job.description,job.title);const occupation=titleRelevance(query,job.title);return {...job,match,occupation,relevance:occupation*100+(match.score??0)}}).filter(j=>j.occupation>0).sort((a,b)=>b.relevance-a.relevance),[jobs,resume,query]);
  const locationTerms=location.toLowerCase().split(/[,/]+/).map(v=>v.trim()).filter(Boolean);const filtered=ranked.filter(j=>!locationTerms.length||locationTerms.some(v=>v==='anywhere'||(v==='remote'&&/remote|worldwide/i.test(j.location))||(j.location+' '+j.description.slice(0,250)).toLowerCase().includes(v)));const visible=onlyRelevant?filtered.filter(j=>j.match.score===null||j.match.score>=15):filtered;
@@ -23,12 +24,12 @@ export default function FindJobs({resumeText,savedResumes,onSave}:{resumeText:st
    if(!response.ok)throw Error('Job source is temporarily unavailable (HTTP '+response.status+').');
    const payload=await response.json();
    if(!Array.isArray(payload.jobs))throw Error('Job source returned an unexpected response.');
-   const items:Job[]=payload.jobs.slice(0,200).flatMap((v:Record<string,unknown>)=>{
+   const items:Job[]=payload.jobs.slice(0,250).flatMap((v:Record<string,unknown>)=>{
     const url=String(v.url||'');
     if(!/^https:\/\//.test(url))return[];
     return[{id:String(v.id||url),title:String(v.title||'').slice(0,180),company:String(v.company||'').slice(0,140),location:String(v.location||'Remote').slice(0,160),description:plain(String(v.description||'')).slice(0,16000),url,salary:String(v.salary||'').slice(0,150),posted:String(v.posted||'').slice(0,40),source:String(v.source||'Public feed')}];
    });
-   setJobs(items);setSearched(true);
+   setJobs(items);setSourceCounts(payload.counts&&typeof payload.counts==='object'?payload.counts:{});setSourceErrors(Array.isArray(payload.errors)?payload.errors:[]);setSearched(true);
   }catch(e){setError(e instanceof Error?e.message:'Search failed.');}
   finally{setBusy(false);}
  }
@@ -49,7 +50,9 @@ export default function FindJobs({resumeText,savedResumes,onSave}:{resumeText:st
   {error&&<p role="alert" style={{marginTop:12}}>{error}</p>}
  </section>
  {searched&&<section className="panel" style={{padding:24,marginTop:18}}><h2>{visible.length} jobs found</h2>
-  <p className="hint">Imported public listings: <a href="https://remotive.com/" target="_blank" rel="noreferrer">Remotive</a> and <a href="https://himalayas.app/" target="_blank" rel="noreferrer">Himalayas</a>. Remote roles may have country restrictions; check each listing before applying.</p>
+  <p className="hint">Sources checked: {Object.entries(sourceCounts).map(([source,count])=>source+" ("+count+")").join(" · ")||"No source statistics available"}. Counts reflect matching job titles in the collected data, before your location and resume filters.</p>
+  {sourceErrors.length>0&&<p className="hint">Some sources could not be reached: {sourceErrors.join(", ")}. The other sources remain available.</p>}
+  <p className="hint">Listings come from public company career boards and free remote-job sources including <a href="https://remotive.com/" target="_blank" rel="noreferrer">Remotive</a>, <a href="https://himalayas.app/" target="_blank" rel="noreferrer">Himalayas</a> and <a href="https://jobicy.com/" target="_blank" rel="noreferrer">Jobicy</a>. Check each employer application page and location eligibility before applying; no paid subscription is required for these public listings.</p>
   {!resume.trim()&&<p className="hint">Add your resume text above to calculate matches.</p>}
   {visible.map(j=><article key={j.id} style={{padding:'16px 0',borderBottom:'1px solid #dce6eb'}}>
    <h3 style={{marginBottom:6}}>{j.title}</h3><p>{j.company} · {j.location} · {j.source}{j.salary?' · '+j.salary:''}</p>
