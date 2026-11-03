@@ -2,6 +2,7 @@
 // Only search keywords are sent upstream; candidate resumes stay on the device.
 const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json','cache-control':'public,max-age=900','x-content-type-options':'nosniff'}});
 import {titleRelevance} from '../../src/lib/titleRelevance.mjs';
+import {indiaEligibility} from '../../src/lib/indiaEligibility.mjs';
 const DEFAULT_BOARDS=[['greenhouse','stripe'],['greenhouse','gitlab'],['greenhouse','coinbase'],['greenhouse','airbnb'],['ashby','notion'],['ashby','ramp']];
 const scrub=x=>String(x??'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
 async function load(url){
@@ -72,7 +73,12 @@ export async function onRequestGet({request}){
  }
  if(!sources.length)return reply(502,{error:'All job sources unavailable. Please try again later.'});
  const deduped=[...new Map(jobs.filter(j=>j.title&&j.url).map(j=>[j.source+'|'+j.url,j])).values()];
- const relevant=deduped.filter(j=>titleRelevance(search,j.title)>0).sort((a,b)=>titleRelevance(search,b.title)-titleRelevance(search,a.title));
- const counts=Object.fromEntries(sources.map(src=>[src,relevant.filter(j=>j.source===src).length]));
- return reply(200,{jobs:relevant.slice(0,250),sources,counts,errors});
+ const relevant=deduped.filter(j=>titleRelevance(search,j.title)>0).map(j=>({...j,eligibility:indiaEligibility(j.location,j.description,j.title)}));
+ const excludedCount=relevant.filter(j=>j.eligibility.status==='excluded').length;
+ const candidates=relevant.filter(j=>j.eligibility.status!=='excluded').sort((a,b)=>{
+  const statusRank=s=>s==='eligible'?1:0;
+  return statusRank(b.eligibility.status)-statusRank(a.eligibility.status)||titleRelevance(search,b.title)-titleRelevance(search,a.title);
+ });
+ const counts=Object.fromEntries(sources.map(src=>[src,candidates.filter(j=>j.source===src).length]));
+ return reply(200,{jobs:candidates.slice(0,250),sources,counts,excludedCount,errors});
 }
