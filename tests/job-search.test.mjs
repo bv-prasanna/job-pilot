@@ -8,7 +8,8 @@ test('job-search merges both feeds and keeps source labels',async()=>{
   const value=String(url);
   const body=value.includes('himalayas.app')
    ?{jobs:[{guid:'j2',title:'Java Engineering Manager',companyName:'Sample Two',description:'Java microservices',applicationLink:'https://himalayas.app/jobs/java-manager',locationRestrictions:[{name:'India'}]}]}
-   :{jobs:[{id:1,title:'Backend Engineering Manager',company_name:'Sample One',description:'Java backend',url:'https://remotive.com/remote-jobs/software-dev/backend-manager',candidate_required_location:'Worldwide'}]};
+   :value.includes('remotive.com')?{jobs:[{id:1,title:'Backend Engineering Manager',company_name:'Sample One',description:'Java backend',url:'https://remotive.com/remote-jobs/software-dev/backend-manager',candidate_required_location:'Worldwide'}]}
+   :{jobs:[]};
   return {ok:true,text:async()=>JSON.stringify(body)};
  };
  try{
@@ -16,7 +17,10 @@ test('job-search merges both feeds and keeps source labels',async()=>{
   const data=await res.json();
   assert.equal(res.status,200);
   assert.equal(data.jobs.length,2);
-  assert.deepEqual(data.sources,['Remotive','Himalayas']);
+  assert.ok(data.sources.includes('Remotive'));
+  assert.ok(data.sources.includes('Himalayas'));
+  assert.ok(data.sources.includes('Jobicy'));
+  assert.equal(data.counts.Remotive,1);
   assert.equal(data.jobs[1].source,'Himalayas');
   assert.equal(data.jobs[1].location,'India');
  }finally{globalThis.fetch=original;}
@@ -25,7 +29,8 @@ test('job-search returns partial results when one source fails',async()=>{
  const original=globalThis.fetch;
  globalThis.fetch=async url=>{
   if(String(url).includes('himalayas.app'))throw Error('offline');
-  return {ok:true,text:async()=>JSON.stringify({jobs:[{id:1,title:'Java Lead',company_name:'Example',url:'https://remotive.com/remote-jobs/java-lead'}]})};
+  const body=String(url).includes('remotive.com')?{jobs:[{id:1,title:'Java Lead',company_name:'Example',url:'https://remotive.com/remote-jobs/java-lead'}]}:{jobs:[]};
+  return {ok:true,text:async()=>JSON.stringify(body)};
  };
  try{
   const res=await onRequestGet({request:new Request('https://example.com/api/job-search?search=Java')});
@@ -43,14 +48,16 @@ test('fetches public Greenhouse, Lever and Ashby job boards',async()=>{
   let body={jobs:[]};
   if(u.includes('boards-api.greenhouse.io'))body={jobs:[{id:12,title:'Engineering Manager',absolute_url:'https://boards.greenhouse.io/demo/jobs/12',content:'Java',location:{name:'Bengaluru'}}]};
   if(u.includes('api.lever.co'))body=[{id:'l1',text:'Java Lead',hostedUrl:'https://jobs.lever.co/demo/l1',descriptionPlain:'Java',categories:{location:'India'}}];
-  if(u.includes('api.ashbyhq.com'))body={jobs:[{id:'a1',title:'Backend Manager',jobUrl:'https://jobs.ashbyhq.com/demo/a1',descriptionPlain:'Microservices',location:'Remote'}]};
+  if(u.includes('api.ashbyhq.com')&&u.includes('/demo'))body={jobs:[{id:'a1',title:'Backend Manager',jobUrl:'https://jobs.ashbyhq.com/demo/a1',descriptionPlain:'Microservices',location:'Remote'}]};
+  if(u.includes('jobicy.com/api/jobs'))body={jobs:[{id:'j3',jobTitle:'Backend Manager',companyName:'Sample Jobicy',jobGeo:'APAC',url:'https://jobicy.com/jobs/backend-manager'}]};
   return {ok:true,text:async()=>JSON.stringify(body)};
  };
  try{
   const res=await onRequestGet({request:new Request('https://example.com/api/job-search?search=Manager&boards=greenhouse:demo,lever:demo,ashby:demo')});
   const json=await res.json();
   assert.equal(res.status,200);
-  assert.equal(json.jobs.length,3);
+  assert.equal(json.jobs.length,4);
+  assert.equal(json.counts.Jobicy,1);
   assert.ok(json.sources.includes('greenhouse:demo'));
   assert.ok(json.sources.includes('lever:demo'));
   assert.ok(json.sources.includes('ashby:demo'));
@@ -59,4 +66,14 @@ test('fetches public Greenhouse, Lever and Ashby job boards',async()=>{
 test('rejects invalid or missing search terms',async()=>{
  const res=await onRequestGet({request:new Request('https://example.com/api/job-search')});
  assert.equal(res.status,400);
+});
+
+test('job search filters unrelated job titles before returning results',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async url=>({ok:true,text:async()=>JSON.stringify(String(url).includes('remotive.com')?{jobs:[{id:'civil',title:'Civil Engineer',company_name:'Build Co',url:'https://remotive.com/remote-jobs/civil'},{id:'software',title:'Software Engineer',company_name:'Code Co',url:'https://remotive.com/remote-jobs/software'}]}:{jobs:[]})});
+ try{
+  const res=await onRequestGet({request:new Request('https://example.com/api/job-search?search=Civil%20Engineer')});
+  const data=await res.json();
+  assert.deepEqual(data.jobs.map(j=>j.title),['Civil Engineer']);
+ }finally{globalThis.fetch=original;}
 });
