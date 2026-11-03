@@ -7,8 +7,8 @@ type Job={id:string;title:string;company:string;location:string;description:stri
 const plain=(s:string)=>s.replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
 const searchUrl='/api/job-search';
 type SavedResume={id:string;name:string;text:string;updatedAt:string};
-export default function FindJobs({resumeText,savedResumes,onSave,onUploadResume,onManageResumes}:{resumeText:string;savedResumes:SavedResume[];onSave:(job:Job)=>void;onUploadResume:(version:SavedResume,file:File)=>Promise<void>;onManageResumes:()=>void}){
- const [selectedResume,setSelectedResume]=useState('profile');
+export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave,onUploadResume,onManageResumes}:{resumeText:string;savedResumes:SavedResume[];defaultResumeId?:string;onSave:(job:Job)=>void;onUploadResume:(version:SavedResume,file:File)=>Promise<void>;onManageResumes:()=>void}){
+ const [selectedResume,setSelectedResume]=useState(()=>defaultResumeId||savedResumes.find(v=>v.text===resumeText)?.id||'profile');
  const [uploading,setUploading]=useState(false),[uploadMessage,setUploadMessage]=useState('');
  const selectedVersion=savedResumes.find(v=>v.id===selectedResume);
  const resume=selectedVersion?.text||(selectedResume==='profile'?resumeText:'');
