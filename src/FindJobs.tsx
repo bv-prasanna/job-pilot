@@ -2,6 +2,7 @@ import {useMemo,useState} from 'react';
 import {matchResume} from './lib/core.mjs';
 import {titleRelevance} from './lib/titleRelevance.mjs';
 import {extractResumeText} from './lib/resume';
+import {indiaEligibility} from './lib/indiaEligibility.mjs';
 
 type Job={id:string;title:string;company:string;location:string;description:string;url:string;salary:string;posted:string;source:string};
 const plain=(s:string)=>s.replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
@@ -30,9 +31,20 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
  }
  const[busy,setBusy]=useState(false),[error,setError]=useState(''),[searched,setSearched]=useState(false);
  const [sourceCounts,setSourceCounts]=useState<Record<string,number>>({}),[sourceErrors,setSourceErrors]=useState<string[]>([]);
- const[onlyRelevant,setOnlyRelevant]=useState(false);const[location,setLocation]=useState('');const[boards,setBoards]=useState('');
- const ranked=useMemo(()=>jobs.map(job=>{const match=matchResume(resume,job.description,job.title);const occupation=titleRelevance(query,job.title);return {...job,match,occupation,relevance:occupation*100+(match.score??0)}}).filter(j=>j.occupation>0).sort((a,b)=>b.relevance-a.relevance),[jobs,resume,query]);
- const locationTerms=location.toLowerCase().split(/[,/]+/).map(v=>v.trim()).filter(Boolean);const filtered=ranked.filter(j=>!locationTerms.length||locationTerms.some(v=>v==='anywhere'||(v==='remote'&&/remote|worldwide/i.test(j.location))||(j.location+' '+j.description.slice(0,250)).toLowerCase().includes(v)));const visible=onlyRelevant?filtered.filter(j=>j.match.score===null||j.match.score>=15):filtered;
+ const[onlyRelevant,setOnlyRelevant]=useState(false);const[showUnconfirmed,setShowUnconfirmed]=useState(false);const[location,setLocation]=useState('');const[boards,setBoards]=useState('');
+ const ranked=useMemo(()=>jobs.map(job=>{
+  const match=matchResume(resume,job.description,job.title);
+  const occupation=titleRelevance(query,job.title);
+  const eligibility=indiaEligibility(job.location,job.description,job.title);
+  return {...job,match,occupation,eligibility,relevance:occupation*100+(match.score??0)};
+ }).filter(j=>j.occupation>0).sort((a,b)=>b.relevance-a.relevance),[jobs,resume,query]);
+ const locationTerms=location.toLowerCase().split(/[,/]+/).map(v=>v.trim()).filter(Boolean);
+ const eligible=ranked.filter(j=>j.eligibility.status==='eligible');
+ const unconfirmed=ranked.filter(j=>j.eligibility.status==='unknown');
+ const restrictedCount=ranked.filter(j=>j.eligibility.status==='excluded').length;
+ const possible=showUnconfirmed?[...eligible,...unconfirmed]:eligible;
+ const filtered=possible.filter(j=>!locationTerms.length||locationTerms.some(v=>v==='anywhere'||(v==='remote'&&/remote|worldwide/i.test(j.location))||(j.location+' '+j.description.slice(0,250)).toLowerCase().includes(v)));
+ const visible=onlyRelevant?filtered.filter(j=>j.match.score===null||j.match.score>=15):filtered;
  async function search(){
   if(busy)return;
   setBusy(true);setError('');setSearched(false);
@@ -68,7 +80,8 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
   </div>
   {uploadMessage&&<p role="status" className="hint">{uploadMessage}</p>}
  </div>
-  <div className="field"><label className="field-label" htmlFor="jf-location">Location preferences (comma-separated; leave empty for all)</label><input id="jf-location" value={location} onChange={e=>setLocation(e.target.value)} placeholder="India, Bengaluru, Remote"/></div>
+  <div className="field"><label className="field-label" htmlFor="jf-location">Additional location keywords (optional)</label><input id="jf-location" value={location} onChange={e=>setLocation(e.target.value)} placeholder="Bengaluru, Hyderabad"/></div>
+  <p className="hint">India eligibility is applied automatically. Jobs restricted to the US, Brazil or other foreign regions are excluded. Leaving this additional field empty includes Bengaluru, elsewhere in India and explicitly worldwide-eligible positions.</p>
   <div className="field"><label className="field-label" htmlFor="jf-boards">Optional company ATS boards</label><input id="jf-boards" value={boards} onChange={e=>setBoards(e.target.value)} placeholder="greenhouse:company-board, lever:company-board, ashby:company-board"/></div>
   <p className="hint">The board field accepts public Greenhouse, Lever or Ashby board identifiers from companies you want to follow. No accounts or paid keys are needed to read their published postings.</p>
   <p className="hint">JobPilot reuses your selected saved resume. Upload here or use Resume Management to maintain other versions.</p>
@@ -76,24 +89,25 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
   <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}><a className="btn outline" href={"https://www.google.com/search?q="+encodeURIComponent(query+" jobs "+(location||"Bengaluru India"))} target="_blank" rel="noopener noreferrer">Search Google Jobs ↗</a><a className="btn outline" href={"https://www.linkedin.com/jobs/search/?keywords="+encodeURIComponent(query)+"&location="+encodeURIComponent(location||"Bengaluru, Karnataka, India")} target="_blank" rel="noopener noreferrer">Search LinkedIn Jobs ↗</a></div>
   <p className="hint">Google and LinkedIn links open their own live job searches; they are not imported or counted as JobPilot results. Applications are free where the employer permits.</p>
   <p className="hint">Only the search keywords are sent to the jobs source through a Cloudflare Pages Function. Your resume stays in this browser; the displayed score is keyword overlap, not an ATS score. Listings may have geographic restrictions.</p>
-  <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}><button className="btn primary" disabled={busy} onClick={()=>void search()}>{busy?'Searching...':'Search open jobs'}</button><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={onlyRelevant} onChange={e=>setOnlyRelevant(e.target.checked)}/> Hide low resume overlaps</label></div>
+  <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}><button className="btn primary" disabled={busy} onClick={()=>void search()}>{busy?'Searching...':'Search India-eligible jobs'}</button><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={onlyRelevant} onChange={e=>setOnlyRelevant(e.target.checked)}/> Hide low resume overlaps</label><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={showUnconfirmed} onChange={e=>setShowUnconfirmed(e.target.checked)}/> Also show location-unverified jobs</label></div>
   {error&&<p role="alert" style={{marginTop:12}}>{error}</p>}
  </section>
- {searched&&<section className="panel" style={{padding:24,marginTop:18}}><h2>{visible.length} jobs found</h2>
-  <p className="hint">Sources checked: {Object.entries(sourceCounts).map(([source,count])=>source+" ("+count+")").join(" · ")||"No source statistics available"}. Counts reflect matching job titles in the collected data, before your location and resume filters.</p>
+ {searched&&<section className="panel" style={{padding:24,marginTop:18}}><h2>{visible.length} India-relevant jobs shown</h2>
+  <p className="hint">Eligibility: {eligible.length} explicitly India/worldwide · {unconfirmed.length} not verified (hidden by default) · {restrictedCount} excluded for foreign-location restrictions. JobPilot cannot independently guarantee employer eligibility; verify each live application page.</p>
+  <p className="hint">Sources checked: {Object.entries(sourceCounts).map(([source,count])=>source+" ("+count+")").join(" · ")||"No source statistics available"}. Counts reflect matching job titles in the collected data, before India eligibility, additional location and resume filters.</p>
   {sourceErrors.length>0&&<p className="hint">Some sources could not be reached: {sourceErrors.join(", ")}. The other sources remain available.</p>}
   <p className="hint">Listings come from public company career boards and free remote-job sources including <a href="https://remotive.com/" target="_blank" rel="noreferrer">Remotive</a>, <a href="https://himalayas.app/" target="_blank" rel="noreferrer">Himalayas</a> and <a href="https://jobicy.com/" target="_blank" rel="noreferrer">Jobicy</a>. Check each employer application page and location eligibility before applying; no paid subscription is required for these public listings.</p>
   {!resume.trim()&&<p className="hint">Add your resume text above to calculate matches.</p>}
   {visible.map(j=><article key={j.id} style={{padding:'16px 0',borderBottom:'1px solid #dce6eb'}}>
    <h3 style={{marginBottom:6}}>{j.title}</h3><p>{j.company} · {j.location} · {j.source}{j.salary?' · '+j.salary:''}</p>
-   <p className="hint">{j.match.score===null?'Match unavailable':j.match.score+'% keyword overlap'}{j.posted?' · Posted '+(Number(j.posted)?new Date(Number(j.posted)).toISOString().slice(0,10):j.posted.slice(0,10)):''}</p>
+   <p className="hint">{j.eligibility.status==='eligible'?'India/worldwide eligibility indicated':'Location eligibility unverified'} · {j.match.score===null?'Resume match unavailable':j.match.score+'% resume keyword overlap'}{j.posted?' · Posted '+(Number(j.posted)?new Date(Number(j.posted)).toISOString().slice(0,10):j.posted.slice(0,10)):''}</p>
    <p>{j.description.slice(0,350)}{j.description.length>350?'…':''}</p>
    <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
     <a className="btn primary" href={j.url} target="_blank" rel="noopener noreferrer">Open job &amp; apply ↗</a>
     <button className="btn outline" onClick={()=>onSave(j)}>Save to my jobs</button>
    </div>
   </article>)}
-  {!visible.length&&<p>No matching job titles were found from the connected public feeds. Try the Google Jobs or LinkedIn Jobs links above, or adjust your search terms.</p>}
+  {!visible.length&&<p>No jobs with confirmed India/worldwide eligibility match these filters. You can optionally show location-unverified jobs, or try the Google Jobs and LinkedIn links above.</p>}
  </section>}
  </>;
 }
