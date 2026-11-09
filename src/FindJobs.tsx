@@ -10,7 +10,7 @@ const searchUrl='/api/job-search';
 type SavedResume={id:string;name:string;text:string;updatedAt:string};
 export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave,onUploadResume,onManageResumes}:{resumeText:string;savedResumes:SavedResume[];defaultResumeId?:string;onSave:(job:Job)=>void;onUploadResume:(version:SavedResume,file:File)=>Promise<void>;onManageResumes:()=>void}){
  const [selectedResume,setSelectedResume]=useState(()=>defaultResumeId||savedResumes.find(v=>v.text===resumeText)?.id||'profile');
- const [uploading,setUploading]=useState(false),[uploadMessage,setUploadMessage]=useState('');
+ const [uploading,setUploading]=useState(false),[uploadMessage,setUploadMessage]=useState(''),[showResumeUpload,setShowResumeUpload]=useState(!resumeText.trim()&&!savedResumes.length);
  const selectedVersion=savedResumes.find(v=>v.id===selectedResume);
  const resume=selectedVersion?.text||(selectedResume==='profile'?resumeText:'');
  const selectedName=selectedVersion?.name||(resumeText.trim()?'Current profile resume':'No resume saved');
@@ -25,7 +25,7 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
    await onUploadResume(version,file);
    setSelectedResume(version.id);
    setSearched(false);
-   setUploadMessage('Saved '+file.name+'. It is now the selected resume for matching.');
+   setUploadMessage('Saved '+file.name+'. It will be reused until you change it.');setShowResumeUpload(false);
   }catch(e){setUploadMessage(e instanceof Error?e.message:'Unable to upload resume');}
   finally{setUploading(false);}
  }
@@ -74,17 +74,21 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
   </select>:<p role="status">No resume uploaded yet. Upload a resume below to calculate job matches.</p>}
   <p className="hint">Selected: <strong>{selectedName}</strong>{resume.trim()?' ('+resume.length.toLocaleString()+' characters)':' — no readable resume text selected'}. Your uploaded resume stays in this browser.</p>
   <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
-   <label htmlFor="jf-upload">Upload new resume (PDF, DOCX, TXT or MD)</label>
-   <input id="jf-upload" type="file" accept=".pdf,.docx,.txt,.md" disabled={uploading} onChange={e=>{void uploadResume(e.target.files?.[0]);e.target.value='';}}/>
+   {resume.trim()&&!showResumeUpload?<strong>Resume saved — upload not required</strong>:null}
+   <button type="button" className="btn outline" onClick={()=>setShowResumeUpload(v=>!v)}>{showResumeUpload?'Cancel upload':'Upload / replace resume'}</button>
    <button type="button" className="btn outline" onClick={onManageResumes}>Manage all resumes</button>
   </div>
+  {showResumeUpload&&<div className="field" style={{marginTop:12}}>
+   <label className="field-label" htmlFor="jf-upload">Choose PDF, DOCX, TXT or MD (only when adding/changing a resume)</label>
+   <input id="jf-upload" type="file" accept=".pdf,.docx,.txt,.md" disabled={uploading} onChange={e=>{void uploadResume(e.target.files?.[0]);e.target.value='';}}/>
+  </div>}
   {uploadMessage&&<p role="status" className="hint">{uploadMessage}</p>}
  </div>
   <div className="field"><label className="field-label" htmlFor="jf-location">Additional location keywords (optional)</label><input id="jf-location" value={location} onChange={e=>setLocation(e.target.value)} placeholder="Bengaluru, Hyderabad"/></div>
   <p className="hint">India eligibility is applied automatically. Jobs restricted to the US, Brazil or other foreign regions are excluded. Leaving this additional field empty includes Bengaluru, elsewhere in India and explicitly worldwide-eligible positions.</p>
   <div className="field"><label className="field-label" htmlFor="jf-boards">Optional company ATS boards</label><input id="jf-boards" value={boards} onChange={e=>setBoards(e.target.value)} placeholder="greenhouse:company-board, lever:company-board, ashby:company-board"/></div>
   <p className="hint">The board field accepts public Greenhouse, Lever or Ashby board identifiers from companies you want to follow. No accounts or paid keys are needed to read their published postings.</p>
-  <p className="hint">JobPilot reuses your selected saved resume. Upload here or use Resume Management to maintain other versions.</p>
+  <p className="hint">JobPilot uses your saved resume automatically. Upload again only if you want to add or change it.</p>
   <p className="hint">Only matching job titles are shown; unrelated occupations are excluded before resume scoring.</p>
   <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}><a className="btn outline" href={"https://www.google.com/search?q="+encodeURIComponent(query+" jobs "+(location||"Bengaluru India"))} target="_blank" rel="noopener noreferrer">Search Google Jobs ↗</a><a className="btn outline" href={"https://www.linkedin.com/jobs/search/?keywords="+encodeURIComponent(query)+"&location="+encodeURIComponent(location||"Bengaluru, Karnataka, India")} target="_blank" rel="noopener noreferrer">Search LinkedIn Jobs ↗</a></div>
   <p className="hint">Google and LinkedIn links open their own live job searches; they are not imported or counted as JobPilot results. Applications are free where the employer permits.</p>
