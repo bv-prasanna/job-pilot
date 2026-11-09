@@ -9,6 +9,7 @@ export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onD
   if(!file)return;
   setBusy(true);setMessage('');
   try{
+   if(/\.(pdf|docx)$/i.test(file.name)&&file.size>7*1024*1024)throw Error('Choose a PDF/DOCX smaller than 7 MB so the same file can be attached in Gmail.');
    const extracted=await extractResumeText(file);
    if(!extracted.trim())throw Error('No readable resume content found.');
    const version={id:crypto.randomUUID(),name:file.name,text:extracted,updatedAt:new Date().toISOString()};
@@ -29,7 +30,7 @@ export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onD
  return <><div className="sectionhead"><div><h1>Resume Management</h1><p>Upload once, maintain different versions, and select a default for job matching and email drafts.</p></div></div>
  <section className="panel" style={{padding:24}}>
   <h2>Add a resume</h2>
-  <div className="field"><label className="field-label" htmlFor="rm-file">Upload PDF, DOCX, TXT or MD (maximum 8 MB)</label><input id="rm-file" type="file" accept=".pdf,.docx,.txt,.md" disabled={busy} onChange={e=>void upload(e.target.files?.[0])}/></div>
+  <div className="field"><label className="field-label" htmlFor="rm-file">Upload PDF/DOCX (under 7 MB), TXT or MD</label><input id="rm-file" type="file" accept=".pdf,.docx,.txt,.md" disabled={busy} onChange={e=>void upload(e.target.files?.[0])}/></div>
   <label style={{display:'flex',gap:8,alignItems:'center',marginBottom:16}}><input type="checkbox" checked={makeDefault} onChange={e=>setMakeDefault(e.target.checked)}/> Make this my default resume</label>
   <p className="hint">Or save text as another resume version:</p>
   <div className="field"><label className="field-label" htmlFor="rm-name">Version name</label><input id="rm-name" value={name} onChange={e=>setName(e.target.value)} placeholder="Backend Engineering Manager resume"/></div>
