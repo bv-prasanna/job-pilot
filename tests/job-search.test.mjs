@@ -45,9 +45,9 @@ test('fetches public Greenhouse, Lever and Ashby job boards',async()=>{
  const original=globalThis.fetch;
  globalThis.fetch=async url=>{
   const u=String(url);
-  let body={jobs:[]};
+  let body=u.includes('api.lever.co')?[]:{jobs:[]};
   if(u.includes('boards-api.greenhouse.io'))body={jobs:[{id:12,title:'Engineering Manager',absolute_url:'https://boards.greenhouse.io/demo/jobs/12',content:'Java',location:{name:'Bengaluru'}}]};
-  if(u.includes('api.lever.co'))body=[{id:'l1',text:'Java Lead',hostedUrl:'https://jobs.lever.co/demo/l1',descriptionPlain:'Java',categories:{location:'India'}}];
+  if(u.includes('api.lever.co')&&u.includes('/demo'))body=[{id:'l1',text:'Java Lead',hostedUrl:'https://jobs.lever.co/demo/l1',descriptionPlain:'Java',categories:{location:'India'}}];
   if(u.includes('api.ashbyhq.com')&&u.includes('/demo'))body={jobs:[{id:'a1',title:'Backend Manager',jobUrl:'https://jobs.ashbyhq.com/demo/a1',descriptionPlain:'Microservices',location:'Remote'}]};
   if(u.includes('jobicy.com/api/jobs'))body={jobs:[{id:'j3',jobTitle:'Backend Manager',companyName:'Sample Jobicy',jobGeo:'APAC',url:'https://jobicy.com/jobs/backend-manager'}]};
   return {ok:true,text:async()=>JSON.stringify(body)};
@@ -96,5 +96,22 @@ test('server drops Brazil-only jobs before capping results, but preserves India 
   assert.equal(result.excludedCount,1);
   assert.deepEqual(result.jobs.map(j=>j.location).sort(),['India','Worldwide']);
   assert.ok(result.jobs.every(j=>j.eligibility.status==='eligible'));
+ }finally{globalThis.fetch=original;}
+});
+
+test('automatic employer discovery checks verified India boards and filters Himalayas to India',async()=>{
+ const original=globalThis.fetch;const seen=[];
+ globalThis.fetch=async url=>{
+  const u=String(url);seen.push(u);
+  const body=u.includes('api.lever.co')?[]:{jobs:[]};
+  return {ok:true,text:async()=>JSON.stringify(body)};
+ };
+ try{
+  const res=await onRequestGet({request:new Request('https://example.com/api/job-search?search=Engineering%20Manager')});
+  assert.equal(res.status,200);
+  assert.ok(seen.some(u=>u.includes('/postings/hevodata?mode=json')));
+  assert.ok(seen.some(u=>u.includes('/postings/acceldata?mode=json')));
+  assert.ok(seen.some(u=>u.includes('/job-board/surveymonkey')));
+  assert.ok(seen.some(u=>u.includes('himalayas.app/jobs/api/search')&&u.includes('country=IN')));
  }finally{globalThis.fetch=original;}
 });
