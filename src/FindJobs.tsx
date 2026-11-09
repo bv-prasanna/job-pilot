@@ -19,6 +19,7 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
   if(!file)return;
   setUploading(true);setUploadMessage('');
   try{
+   if(/\.(pdf|docx)$/i.test(file.name)&&file.size>7*1024*1024)throw Error('For saved Gmail attachments, please use a PDF/DOCX smaller than 7 MB.');
    const text=await extractResumeText(file);
    if(!text.trim())throw Error('No readable text in this resume. Please upload a text-based PDF/DOCX or save the resume text in Resume Management.');
    const version:SavedResume={id:crypto.randomUUID(),name:file.name,text,updatedAt:new Date().toISOString()};
@@ -81,7 +82,7 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
    <button type="button" className="btn outline" onClick={onManageResumes}>Manage all resumes</button>
   </div>
   {showResumeUpload&&<div className="field" style={{marginTop:12}}>
-   <label className="field-label" htmlFor="jf-upload">Choose PDF, DOCX, TXT or MD (only when adding/changing a resume)</label>
+   <label className="field-label" htmlFor="jf-upload">Choose PDF/DOCX (under 7 MB), TXT or MD (only when adding/changing a resume)</label>
    <input id="jf-upload" type="file" accept=".pdf,.docx,.txt,.md" disabled={uploading} onChange={e=>{void uploadResume(e.target.files?.[0]);e.target.value='';}}/>
   </div>}
   {uploadMessage&&<p role="status" className="hint">{uploadMessage}</p>}
