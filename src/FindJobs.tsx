@@ -31,18 +31,20 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
  }
  const[busy,setBusy]=useState(false),[error,setError]=useState(''),[searched,setSearched]=useState(false);
  const [sourceCounts,setSourceCounts]=useState<Record<string,number>>({}),[sourceErrors,setSourceErrors]=useState<string[]>([]),[serverExcludedCount,setServerExcludedCount]=useState(0);
- const[onlyRelevant,setOnlyRelevant]=useState(false);const[showUnconfirmed,setShowUnconfirmed]=useState(false);const[location,setLocation]=useState('');const[boards,setBoards]=useState('');
+ const[onlyRelevant,setOnlyRelevant]=useState(false);const[sourceFilter,setSourceFilter]=useState('all');const[showUnconfirmed,setShowUnconfirmed]=useState(false);const[location,setLocation]=useState('');const[boards,setBoards]=useState('');
  const ranked=useMemo(()=>jobs.map(job=>{
   const match=matchResume(resume,job.description,job.title);
   const occupation=titleRelevance(query,job.title);
   const eligibility=indiaEligibility(job.location,job.description,job.title);
-  return {...job,match,occupation,eligibility,relevance:occupation*100+(match.score??0)};
- }).filter(j=>j.occupation>0).sort((a,b)=>b.relevance-a.relevance),[jobs,resume,query]);
+  const employer=/^(greenhouse|lever|ashby):/i.test(job.source);
+  const indiaOffice=/\b(india|bengaluru|bangalore|pune|hyderabad|chennai|mumbai|delhi)\b/i.test(job.location);
+  return {...job,match,occupation,eligibility,employer,relevance:occupation*100+(match.score??0),priority:(employer?100000:0)+(indiaOffice?30000:0)};
+ }).filter(j=>j.occupation>0).sort((a,b)=>(b.priority+b.relevance)-(a.priority+a.relevance)),[jobs,resume,query]);
  const locationTerms=location.toLowerCase().split(/[,/]+/).map(v=>v.trim()).filter(Boolean);
  const eligible=ranked.filter(j=>j.eligibility.status==='eligible');
  const unconfirmed=ranked.filter(j=>j.eligibility.status==='unknown');
  const restrictedCount=serverExcludedCount+ranked.filter(j=>j.eligibility.status==='excluded').length;
- const possible=showUnconfirmed?[...eligible,...unconfirmed]:eligible;
+ const possible=(showUnconfirmed?[...eligible,...unconfirmed]:eligible).filter(j=>sourceFilter==='all'||(sourceFilter==='employer'?j.employer:!j.employer));
  const filtered=possible.filter(j=>!locationTerms.length||locationTerms.some(v=>v==='anywhere'||(v==='remote'&&/remote|worldwide/i.test(j.location))||(j.location+' '+j.description.slice(0,250)).toLowerCase().includes(v)));
  const visible=onlyRelevant?filtered.filter(j=>j.match.score===null||j.match.score>=15):filtered;
  async function search(){
@@ -97,6 +99,8 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
   {error&&<p role="alert" style={{marginTop:12}}>{error}</p>}
  </section>
  {searched&&<section className="panel" style={{padding:24,marginTop:18}}><h2>{visible.length} India-relevant jobs shown</h2>
+  <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap',marginBottom:12}}><label htmlFor="jf-source">Show sources</label><select id="jf-source" value={sourceFilter} onChange={e=>setSourceFilter(e.target.value)}><option value="all">All eligible sources (employer postings first)</option><option value="employer">Direct employer career boards</option><option value="feeds">Remote job feeds</option></select></div>
+  <p className="hint">Direct employer postings from public Greenhouse, Lever and Ashby boards are ranked ahead of aggregator listings. This does not guarantee an employer will accept every application.</p>
   <p className="hint">Eligibility: {eligible.length} explicitly India/worldwide · {unconfirmed.length} not verified (hidden by default) · {restrictedCount} excluded for foreign-location restrictions. JobPilot cannot independently guarantee employer eligibility; verify each live application page.</p>
   <p className="hint">Sources checked: {Object.entries(sourceCounts).map(([source,count])=>source+" ("+count+")").join(" · ")||"No source statistics available"}. Counts reflect candidate job titles after foreign-only roles are removed, before your additional location and resume filters.</p>
   {sourceErrors.length>0&&<p className="hint">Some sources could not be reached: {sourceErrors.join(", ")}. The other sources remain available.</p>}
