@@ -3,7 +3,13 @@
 const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json','cache-control':'public,max-age=900','x-content-type-options':'nosniff'}});
 import {titleRelevance} from '../../src/lib/titleRelevance.mjs';
 import {indiaEligibility} from '../../src/lib/indiaEligibility.mjs';
-const DEFAULT_BOARDS=[['greenhouse','stripe'],['greenhouse','gitlab'],['greenhouse','coinbase'],['greenhouse','airbnb'],['ashby','notion'],['ashby','ramp']];
+// Verified public employer career-board IDs with India/Bengaluru postings.
+// Review periodically: companies can move ATS vendors or change board tokens.
+const DEFAULT_BOARDS=[
+ ['lever','hevodata'],['lever','safe'],['lever','acceldata'],['lever','smarsh'],
+ ['ashby','surveymonkey'],['ashby','certifyos'],['ashby','tilthq'],
+ ['ashby','harvey'],['ashby','nightfall-ai']
+];
 const scrub=x=>String(x??'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
 async function load(url){
  const response=await fetch(url,{headers:{accept:'application/json'},signal:AbortSignal.timeout(12000),cf:{cacheTtl:1800,cacheEverything:true}});
@@ -15,7 +21,7 @@ export async function onRequestGet({request}){
  const search=new URL(request.url).searchParams.get('search')?.trim()||'';
  if(!search||search.length>80)return reply(400,{error:'Enter a search phrase up to 80 characters'});
  const remotive='https://remotive.com/api/remote-jobs?search='+encodeURIComponent(search)+'&limit=100';
- const himalayas='https://himalayas.app/jobs/api/search?q='+encodeURIComponent(search)+'&sort=recent&page=1';
+ const himalayas='https://himalayas.app/jobs/api/search?q='+encodeURIComponent(search)+'&country=IN&sort=recent&page=1';
  const params=new URL(request.url).searchParams;
  const jobicy='https://jobicy.com/api/jobs?count=100&tag='+encodeURIComponent(search.slice(0,50));
  const boardSpecs=(params.get('boards')||'').split(',').map(v=>v.trim()).filter(Boolean).slice(0,12);
@@ -26,7 +32,7 @@ export async function onRequestGet({request}){
   const url=provider==='greenhouse'?'https://boards-api.greenhouse.io/v1/boards/'+board+'/jobs?content=true':provider==='lever'?'https://api.lever.co/v0/postings/'+board+'?mode=json':'https://api.ashbyhq.com/posting-api/job-board/'+board;
   return [{provider,board,url}];
  });
- const automaticBoards=DEFAULT_BOARDS.map(([provider,board])=>({provider,board,url:provider==='greenhouse'?'https://boards-api.greenhouse.io/v1/boards/'+board+'/jobs?content=true':'https://api.ashbyhq.com/posting-api/job-board/'+board}));
+ const automaticBoards=DEFAULT_BOARDS.map(([provider,board])=>({provider,board,url:provider==='greenhouse'?'https://boards-api.greenhouse.io/v1/boards/'+board+'/jobs?content=true':provider==='lever'?'https://api.lever.co/v0/postings/'+board+'?mode=json':'https://api.ashbyhq.com/posting-api/job-board/'+board}));
  const boards=[...new Map([...automaticBoards,...publicBoards].map(b=>[b.provider+':'+b.board,b])).values()];
  const outcomes=await Promise.allSettled([load(remotive),load(himalayas),load(jobicy),...boards.map(b=>load(b.url))]);
  const jobs=[],sources=[],errors=[];
