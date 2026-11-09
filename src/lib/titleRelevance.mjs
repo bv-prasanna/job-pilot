@@ -15,11 +15,14 @@ export function titleRelevance(query,title){
  if(!q||!t)return 0;
  const qdomain=domain(q),tdomain=domain(t);
  if(qdomain>=0&&tdomain>=0&&qdomain!==tdomain)return -1;
+ const softwareManagement=/(?:engineering manager|software development manager|software engineering manager|ai platform lead)/.test(q)&&qdomain!==0&&qdomain!==2&&qdomain!==3&&qdomain!==4;
+ if(softwareManagement&&[0,2,3,4].includes(tdomain))return -1;
  const terms=q.split(' ').filter(v=>v.length>2&&!noise.has(v));
  const hits=terms.filter(term=>t.split(' ').includes(term)).length;
  if(t.includes(q))return 200+hits*30;
  if(terms.length&&hits===terms.length)return 150+hits*25;
  if(terms.length>1&&hits>=Math.ceil(terms.length*0.6))return 80+hits*20;
  if(terms.length===1&&hits===1)return 80;
+ if(softwareManagement&&/(?:head|director|manager|lead).{0,25}(?:engineering|software|backend|platform)|(?:engineering|software|backend|platform).{0,25}(?:head|director|manager|lead)/.test(t))return 75;
  return 0;
 }
