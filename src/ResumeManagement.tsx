@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {extractResumeText} from './lib/resume';
-import {saveResumeFile} from './lib/resumeStore';
+import {saveResumeFile,clearResumeFile} from './lib/resumeStore';
 import type {ResumeVersion} from './lib/model';
 type Props={resumes:ResumeVersion[];currentText:string;onAdd:(resume:ResumeVersion,makeDefault:boolean)=>void;onSelect:(id:string)=>void;onDelete:(id:string)=>void};
 export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onDelete}:Props){
@@ -12,8 +12,11 @@ export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onD
    const extracted=await extractResumeText(file);
    if(!extracted.trim())throw Error('No readable resume content found.');
    const version={id:crypto.randomUUID(),name:file.name,text:extracted,updatedAt:new Date().toISOString()};
+   if(/\.(pdf|docx)$/i.test(file.name)){
+    // Keep each version's attachment. Only the selected default is sent by Gmail.
+    await saveResumeFile(file,version.id,makeDefault);
+   }else if(makeDefault){await clearResumeFile();}
    onAdd(version,makeDefault);
-   if(makeDefault&&/\.(pdf|docx|doc)$/i.test(file.name))await saveResumeFile(file);
    setMessage('Saved '+file.name+(makeDefault?' as the default resume.':' for future selection.'));
   }catch(error){setMessage(error instanceof Error?error.message:'Resume could not be imported.');}
   finally{setBusy(false);}
@@ -37,8 +40,8 @@ export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onD
  <section className="panel" style={{padding:24,marginTop:18}}>
   <h2>Available resumes ({resumes.length+(currentText.trim()?1:0)})</h2>
   {currentText.trim()&&<article style={{padding:'14px 0',borderBottom:'1px solid #dce6eb'}}><strong>Current default profile resume</strong><p className="hint">{currentText.length.toLocaleString()} characters · Used automatically for search and email drafting</p></article>}
-  {resumes.map(v=><article key={v.id} style={{padding:'16px 0',borderBottom:'1px solid #dce6eb'}}><strong>{v.name}</strong><p className="hint">{v.text.length.toLocaleString()} characters · Saved {new Date(v.updatedAt).toLocaleDateString()}</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button className="btn outline" type="button" onClick={()=>{onSelect(v.id);setMessage('Set as default: '+v.name+'. For Gmail, the saved attachment remains unchanged unless you upload the corresponding file.')}}>Use as default</button><button className="btn outline" type="button" onClick={()=>{if(window.confirm('Delete saved resume version '+v.name+'?'))onDelete(v.id)}}>Delete version</button></div></article>)}
+  {resumes.map(v=><article key={v.id} style={{padding:'16px 0',borderBottom:'1px solid #dce6eb'}}><strong>{v.name}</strong><p className="hint">{v.text.length.toLocaleString()} characters · Saved {new Date(v.updatedAt).toLocaleDateString()}</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button className="btn outline" type="button" onClick={()=>{onSelect(v.id);setMessage('Set as default: '+v.name+'. The matching PDF/DOCX attachment, if saved, will also become the Gmail default.')}}>Use as default</button><button className="btn outline" type="button" onClick={()=>{if(window.confirm('Delete saved resume version '+v.name+'?'))onDelete(v.id)}}>Delete version</button></div></article>)}
   {!resumes.length&&<p className="hint">No additional versions yet. Upload a resume above to create one.</p>}
-  <p className="hint">All resume text is stored locally in this browser. Selecting a version updates your default matching text; it does not silently switch the Gmail attachment to a different file.</p>
+  <p className="hint">All resume text is stored locally in this browser. Selecting a version also switches to its saved PDF/DOCX attachment when available; text-only versions have no attachment.</p>
  </section></>;
 }
