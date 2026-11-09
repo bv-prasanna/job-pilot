@@ -79,3 +79,19 @@ Periodically export the browser-local JSON backup; treat import/export as a migr
 
 ## KT demo
 Walk through key screens; describe architecture and trust boundaries; demonstrate test enquiry or local export, expected friendly errors, deployment/build commands, smoke tests, monitoring and recovery. Confirm owners and escalation contacts. **Do not claim live delivery or synchronisation unless a real test confirms it.**
+
+## Source correction — current resume, search and Gmail workflows (10 Nov 2026)
+
+The older repository README describes a text-only, mailto-based MVP. **Current `main` has additional code; its concrete modules take precedence over that historical description.**
+
+| Capability now represented in source | Evidence | Verification still needed |
+|---|---|---|
+| Resume versions/selection | [Resume Management](../../src/ResumeManagement.tsx), [resume storage](../../src/lib/resumeStore.ts) | Browser persistence, account switch, large-file and default attachment behavior |
+| PDF/DOCX/TXT/MD import | [browser-side extractor](../../src/lib/resume.ts) using `pdfjs-dist` and `mammoth` | Scanned PDFs without text, parsing limits, no upload to server |
+| Public remote jobs | [Pages Function](../../functions/api/job-search.js) queries public ATS/job feeds, filters India eligibility and title relevance | Real deployed endpoint, quotas, source reliability and accurate India-based eligibility |
+| Alternative local server API | [server app](../../server/app.mjs), [discovery](../../server/discovery.mjs), [start](../../server/start.mjs) | Persistence and authentication, whether deployed and authorised |
+| Gmail user-approved send | [Quick Apply](../../src/QuickApply.tsx), [Gmail setup](../../docs/QUICK-APPLY.md) | User consent, OAuth client/origin, sent-message receipt, attachment and token expiry |
+
+**Important:** Gmail send and public job discovery are code capabilities with external prerequisites, not evidence that Gmail OAuth or cloud functions are configured in the live site. Quick Apply requires explicit user review/authorization; credentials are not to be persisted in browser storage. Do not claim automatic recruiter outreach or guaranteed ATS scoring.
+
+**KT negative tests:** invalid recipient, unsupported/scanned PDF, expired OAuth permission, missing attachment, Gmail provider error, empty/mismatched public ATS feed, US-only role incorrectly shown to India applicants, duplicate resume and browser storage loss.
