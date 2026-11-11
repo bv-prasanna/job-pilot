@@ -1,10 +1,11 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {extractResumeText} from './lib/resume';
-import {saveResumeFile,clearResumeFile} from './lib/resumeStore';
+import {saveResumeFile,clearResumeFile,resumeStorageStatus} from './lib/resumeStore';
 import type {ResumeVersion} from './lib/model';
-type Props={resumes:ResumeVersion[];currentText:string;onAdd:(resume:ResumeVersion,makeDefault:boolean)=>void;onSelect:(id:string)=>void;onDelete:(id:string)=>void};
-export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onDelete}:Props){
- const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[name,setName]=useState(''),[text,setText]=useState(''),[makeDefault,setMakeDefault]=useState(true);
+type Props={resumes:ResumeVersion[];currentText:string;defaultResumeId?:string;onAdd:(resume:ResumeVersion,makeDefault:boolean)=>void;onSelect:(id:string)=>void;onDelete:(id:string)=>void};
+export default function ResumeManagement({resumes,currentText,defaultResumeId,onAdd,onSelect,onDelete}:Props){
+ const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[name,setName]=useState(''),[text,setText]=useState(''),[makeDefault,setMakeDefault]=useState(true),[attachmentStatus,setAttachmentStatus]=useState('Checking saved attachment…');
+ useEffect(()=>{let active=true;void resumeStorageStatus(defaultResumeId,resumes.find(v=>v.id===defaultResumeId)?.name).then(info=>{if(active)setAttachmentStatus(info.saved?'Attachment ready: '+info.filename:info.detail)});return()=>{active=false}},[defaultResumeId,resumes]);
  async function upload(file?:File){
   if(!file)return;
   setBusy(true);setMessage('');
@@ -18,6 +19,8 @@ export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onD
     await saveResumeFile(file,version.id,makeDefault);
    }else if(makeDefault){await clearResumeFile();}
    onAdd(version,makeDefault);
+   const info=await resumeStorageStatus(makeDefault?version.id:defaultResumeId,makeDefault?file.name:resumes.find(v=>v.id===defaultResumeId)?.name);
+   setAttachmentStatus(info.saved?'Attachment ready: '+info.filename:info.detail);
    setMessage('Saved '+file.name+(makeDefault?' as the default resume.':' for future selection.'));
   }catch(error){setMessage(error instanceof Error?error.message:'Resume could not be imported.');}
   finally{setBusy(false);}
@@ -39,9 +42,9 @@ export default function ResumeManagement({resumes,currentText,onAdd,onSelect,onD
   {message&&<p role="status" className="hint">{message}</p>}
  </section>
  <section className="panel" style={{padding:24,marginTop:18}}>
-  <h2>Available resumes ({resumes.length+(currentText.trim()?1:0)})</h2>
+  <h2>Available resumes ({resumes.length+(currentText.trim()?1:0)})</h2><p role="status" className="hint">{attachmentStatus}</p>
   {currentText.trim()&&<article style={{padding:'14px 0',borderBottom:'1px solid #dce6eb'}}><strong>Current default profile resume</strong><p className="hint">{currentText.length.toLocaleString()} characters · Used automatically for search and email drafting</p></article>}
-  {resumes.map(v=><article key={v.id} style={{padding:'16px 0',borderBottom:'1px solid #dce6eb'}}><strong>{v.name}</strong><p className="hint">{v.text.length.toLocaleString()} characters · Saved {new Date(v.updatedAt).toLocaleDateString()}</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button className="btn outline" type="button" onClick={()=>{onSelect(v.id);setMessage('Set as default: '+v.name+'. The matching PDF/DOCX attachment, if saved, will also become the Gmail default.')}}>Use as default</button><button className="btn outline" type="button" onClick={()=>{if(window.confirm('Delete saved resume version '+v.name+'?'))onDelete(v.id)}}>Delete version</button></div></article>)}
+  {resumes.map(v=><article key={v.id} style={{padding:'16px 0',borderBottom:'1px solid #dce6eb'}}><strong>{v.name}</strong>{defaultResumeId===v.id&&<span className="hint"> · Current default</span>}<p className="hint">{v.text.length.toLocaleString()} characters · Saved {new Date(v.updatedAt).toLocaleDateString()}</p><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button className="btn outline" type="button" onClick={()=>{onSelect(v.id);setMessage('Set as default: '+v.name+'. The matching PDF/DOCX attachment, if saved, will also become the Gmail default.')}}>Use as default</button><button className="btn outline" type="button" onClick={()=>{if(window.confirm('Delete saved resume version '+v.name+'?'))onDelete(v.id)}}>Delete version</button></div></article>)}
   {!resumes.length&&<p className="hint">No additional versions yet. Upload a resume above to create one.</p>}
   <p className="hint">All resume text is stored locally in this browser. Selecting a version also switches to its saved PDF/DOCX attachment when available; text-only versions have no attachment.</p>
  </section></>;
