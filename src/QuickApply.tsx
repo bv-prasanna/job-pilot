@@ -21,6 +21,7 @@ function loadGoogleScript():Promise<void>{
 export default function QuickApply({resumeText,sender,defaultResumeId,savedResumes,onSaveResume,onChooseResume}:Props){
  const[email,setEmail]=useState(''),[role,setRole]=useState(''),[recipientName,setRecipientName]=useState(''),[company,setCompany]=useState(''),[jd,setJd]=useState(''),[resumeForDraft,setResumeForDraft]=useState(resumeText);
  const [selectedResumeId,setSelectedResumeId]=useState(defaultResumeId||'profile');
+ const [editResumeText,setEditResumeText]=useState(false);
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[checkingResume,setCheckingResume]=useState(true),[replaceResume,setReplaceResume]=useState(false);
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
  useEffect(()=>{if(clientId)void loadGoogleScript().catch(()=>{});},[clientId]);
@@ -71,7 +72,9 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
    <p className="hint">Usually enter one address. If the same post lists multiple addresses, separate them with commas. They will receive one shared email, not separate applications.</p><div style={row}><label htmlFor="qa-role">Role or position *</label><input id="qa-role" required value={role} onChange={e=>{setRole(e.target.value);setDraft(null)}} style={full} placeholder="Engineering Manager"/></div>
    <div style={row}><label htmlFor="qa-company">Company (optional)</label><input id="qa-company" value={company} onChange={e=>{setCompany(e.target.value);setDraft(null)}} style={full} placeholder="Company name"/></div>
    <div style={row}><label htmlFor="qa-jd">Paste job description from the post (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>{setJd(e.target.value);setDraft(null)}} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
-   <div style={row}><label htmlFor="qa-resume-text">Your resume text (for matching the JD)</label><textarea id="qa-resume-text" rows={7} value={resumeForDraft} onChange={e=>{setResumeForDraft(e.target.value);setDraft(null)}} style={full} placeholder="Paste your actual resume text here or use the saved resume from your profile. This is only used to write a relevant draft."/></div>
+   {resumeForDraft.trim()&&!editResumeText?
+    <div style={row}><strong>Saved resume text ready ({resumeForDraft.length.toLocaleString()} characters)</strong><p className="hint">Used automatically to personalize your email. You do not need to paste it again.</p><button type="button" className="btn outline" onClick={()=>setEditResumeText(true)}>Edit resume text (optional)</button></div>
+    :<div style={row}><label htmlFor="qa-resume-text">Resume text for personalizing the email</label><textarea id="qa-resume-text" rows={7} value={resumeForDraft} onChange={e=>{setResumeForDraft(e.target.value);setDraft(null)}} style={full} placeholder="Save a resume in Resume Management or paste its text here once."/>{resumeForDraft.trim()&&<button type="button" className="btn outline" onClick={()=>setEditResumeText(false)}>Use saved resume text</button>}</div>}
    {savedResumes.length>0&&<div style={row}><label htmlFor="qa-saved-resume">Saved resume for this application</label>
     <select id="qa-saved-resume" style={full} value={savedResumes.some(v=>v.id===selectedResumeId)?selectedResumeId:'profile'} onChange={e=>{
       const id=e.target.value;
