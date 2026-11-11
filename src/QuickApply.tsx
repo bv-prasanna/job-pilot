@@ -1,7 +1,7 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {quickApplyDraft,gmailRawWithAttachment} from './lib/quickApply.mjs';
 import {extractResumeText} from './lib/resume';
-import {getResumeFile,getResumeVersionFile} from './lib/resumeStore';
+import {getResumeFile,getResumeVersionFile,resumeStorageStatus} from './lib/resumeStore';
 
 type SavedResume={id:string;name:string;text:string;updatedAt:string};
 type Props={resumeText:string;sender:string;defaultResumeId?:string;savedResumes:SavedResume[];onSaveResume:(version:SavedResume,file:File)=>Promise<void>;onChooseResume:(versionId:string)=>Promise<void>};
@@ -21,18 +21,27 @@ function loadGoogleScript():Promise<void>{
 export default function QuickApply({resumeText,sender,defaultResumeId,savedResumes,onSaveResume,onChooseResume}:Props){
  const[email,setEmail]=useState(''),[role,setRole]=useState(''),[recipientName,setRecipientName]=useState(''),[company,setCompany]=useState(''),[jd,setJd]=useState(''),[resumeForDraft,setResumeForDraft]=useState(resumeText);
  const [selectedResumeId,setSelectedResumeId]=useState(defaultResumeId||'profile');
+ const [storageInfo,setStorageInfo]=useState('');
  const [editResumeText,setEditResumeText]=useState(false);
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[checkingResume,setCheckingResume]=useState(true),[replaceResume,setReplaceResume]=useState(false);
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
  useEffect(()=>{if(clientId)void loadGoogleScript().catch(()=>{});},[clientId]);
  useEffect(()=>{
   let active=true;
-  void getResumeFile(defaultResumeId,savedResumes.find(v=>v.id===defaultResumeId)?.name).then(saved=>{
+  const expectedName=savedResumes.find(v=>v.id===defaultResumeId)?.name;
+  setCheckingResume(true);
+  void (async()=>{
+   const info=await resumeStorageStatus(defaultResumeId,expectedName);
    if(!active)return;
-   if(saved){setFile(saved);setStatus('Saved resume ready: '+saved.name);}
-   else setStatus(savedResumes.length?'Resume text is saved, but a PDF/DOCX attachment is not available in this browser. Select it once to enable Gmail sending.':'No saved resume attachment in this browser. Upload a PDF/DOCX once for future applications.');
-  }).catch(()=>{if(active)setStatus('Private browser storage could not be accessed. Choose a resume file for this session.');})
-  .finally(()=>{if(active)setCheckingResume(false)});
+   setStorageInfo(info.detail);
+   const saved=info.saved?await getResumeFile(defaultResumeId,expectedName):null;
+   if(!active)return;
+   setFile(saved);
+   setStatus(saved?'Saved resume ready: '+saved.name:info.detail);
+   setCheckingResume(false);
+  })().catch(err=>{
+   if(active){setFile(null);setCheckingResume(false);setStorageInfo('Browser storage check failed: '+(err instanceof Error?err.message:'Unknown error'));}
+  });
   return()=>{active=false};
  },[defaultResumeId]);
  useEffect(()=>{setResumeForDraft(resumeText);setDraft(null)},[resumeText]);
@@ -90,6 +99,8 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
     </select>
     <p className="hint">Your saved resume filename and content are reused. No upload is required while its attachment is available.</p>
    </div>}
+   {savedResumes.length>0&&<p className="hint">Current saved resume: <strong>{savedResumes.find(v=>v.id===selectedResumeId)?.name||savedResumes.find(v=>v.id===defaultResumeId)?.name||'Profile resume'}</strong>. File attachment: <strong>{file?.name||'not available on this browser'}</strong>.</p>}
+   {storageInfo&&<p className="hint" role="status">{storageInfo}</p>}
    {checkingResume?<p className="hint">Checking your saved resume attachment…</p>:file&&!replaceResume?
     <div style={row}><strong>Resume attachment ready: {file.name}</strong><p className="hint">It will be reused automatically. No upload is needed.</p><button type="button" className="btn outline" onClick={()=>setReplaceResume(true)}>Replace resume (optional)</button></div>
     :<div style={row}><label htmlFor="qa-file">{file?'Select replacement PDF/DOCX':'Choose a PDF/DOCX resume once for future emails'}</label>
