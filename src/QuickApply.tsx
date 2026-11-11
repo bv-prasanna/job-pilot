@@ -1,4 +1,4 @@
-import {useEffect,useState,type FormEvent} from 'react';
+import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {quickApplyDraft,gmailRawWithAttachment} from './lib/quickApply.mjs';
 import {extractResumeText} from './lib/resume';
 import {getResumeFile,getResumeVersionFile,resumeStorageStatus} from './lib/resumeStore';
@@ -6,7 +6,7 @@ import {getResumeFile,getResumeVersionFile,resumeStorageStatus} from './lib/resu
 type SavedResume={id:string;name:string;text:string;updatedAt:string};
 type Props={resumeText:string;sender:string;defaultResumeId?:string;savedResumes:SavedResume[];onSaveResume:(version:SavedResume,file:File)=>Promise<void>;onChooseResume:(versionId:string)=>Promise<void>};
 type Draft={to:string;recipients:string[];subject:string;body:string;match:{score:number|null;matched:string[];missing:string[]}|null};
-declare global {interface Window {google?:{accounts:{oauth2:{initTokenClient:(options:{client_id:string;scope:string;callback:(result:{access_token?:string;error?:string})=>void})=>{requestAccessToken:()=>void}}}}}}
+declare global {interface Window {google?:{accounts:{oauth2:{initTokenClient:(options:{client_id:string;scope:string;callback:(result:{access_token?:string;expires_in?:number;error?:string})=>void})=>{requestAccessToken:()=>void}}}}}}
 function loadGoogleScript():Promise<void>{
  if(window.google?.accounts?.oauth2)return Promise.resolve();
  return new Promise((resolve,reject)=>{
@@ -24,6 +24,9 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
  const [storageInfo,setStorageInfo]=useState('');
  const [editResumeText,setEditResumeText]=useState(false);
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[checkingResume,setCheckingResume]=useState(true),[replaceResume,setReplaceResume]=useState(false);
+ const sendingRef=useRef(false);
+ const authRef=useRef<{token:string;expiresAt:number}|null>(null);
+ const [lastSent,setLastSent]=useState<{to:string;role:string;company:string;time:string}|null>(null);
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
  useEffect(()=>{if(clientId)void loadGoogleScript().catch(()=>{});},[clientId]);
  useEffect(()=>{
@@ -48,28 +51,54 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
  const match=draft?.match;
  function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText:resumeForDraft,sender,recipientName}));setStatus(file?'Review the draft. Saved resume attachment: '+file.name:'Review the draft. Select a PDF/DOCX attachment before sending.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
  async function send(){
-  if(!draft||busy)return;
-  if(!clientId){setStatus('Gmail sending is not configured. Set VITE_GOOGLE_CLIENT_ID when deploying.');return;}
-  if(!file){setStatus('Please attach your PDF, DOC or DOCX resume.');return;}
-  if(!window.confirm('Send ONE application email to '+draft.recipients.length+' recipient(s): '+draft.to+' with resume '+file.name+' attached using your Google account?'))return;
-  setBusy(true);setStatus('Connecting to Gmail securely...');
+  // The send button itself is explicit approval. No second browser confirm popup.
+  if(!draft||busy||sendingRef.current)return;
+  if(!clientId){setStatus('Gmail sending is not configured.');return;}
+  if(!file){setStatus('A PDF or DOCX resume is required before sending.');return;}
+  const approved={...draft,recipients:[...draft.recipients]};
+  const approvedRole=role.trim();
+  const approvedCompany=company.trim();
+  const approvedFile=file;
+  sendingRef.current=true;setBusy(true);
+  setStatus('Preparing application for '+approved.to+' — '+approvedRole+'…');
+  async function sendApproved(token:string){
+   try{
+    const raw=await gmailRawWithAttachment({...approved,file:approvedFile});
+    setStatus('Sending email to '+approved.to+' for '+approvedRole+'…');
+    const response=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
+     method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({raw})
+    });
+    const payload=await response.json().catch(()=>({}));
+    if(!response.ok||!payload.id)throw Error(payload.error?.message||'Gmail did not confirm sending');
+    const time=new Date().toLocaleString();
+    setLastSent({to:approved.to,role:approvedRole,company:approvedCompany,time});
+    setStatus('Email sent successfully to '+approved.to+' for '+approvedRole+(approvedCompany?' at '+approvedCompany:'')+'. The draft has been cleared.');
+    setDraft(null);setEmail('');setRole('');setRecipientName('');setCompany('');setJd('');
+   }catch(e){
+    setStatus('Sending not confirmed for '+approved.to+' / '+approvedRole+': '+(e instanceof Error?e.message:'Unknown error')+'. Check Gmail Sent before retrying.');
+   }finally{sendingRef.current=false;setBusy(false);}
+  }
   try{
-   if(!window.google?.accounts?.oauth2)throw Error('Google sign-in is still loading. Please try again.');
-   const client=window.google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/gmail.send',callback:async result=>{
-     if(!result.access_token){setStatus('Google authorization was cancelled or rejected.');setBusy(false);return;}
-     try{
-      setStatus('Preparing the resume attachment...');
-      const raw=await gmailRawWithAttachment({...draft,file});
-      setStatus('Sending approved application with resume...');
-      const response=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{method:'POST',headers:{Authorization:'Bearer '+result.access_token,'Content-Type':'application/json'},body:JSON.stringify({raw})});
-      const payload=await response.json().catch(()=>({}));
-      if(!response.ok||!payload.id)throw Error(payload.error?.message||'Gmail did not confirm sending');
-      setStatus('Sent through Gmail successfully. Gmail message ID: '+payload.id);
-     }catch(e){setStatus(e instanceof Error?e.message:'Unable to send using Gmail');}
-     finally{setBusy(false);}
-   }});
+   const cached=authRef.current;
+   if(cached&&cached.expiresAt>Date.now()+60000){await sendApproved(cached.token);return;}
+   if(!window.google?.accounts?.oauth2)throw Error('Google authorization is still loading. Try again.');
+   const client=window.google.accounts.oauth2.initTokenClient({
+    client_id:clientId,scope:'https://www.googleapis.com/auth/gmail.send',
+    callback:result=>{
+     if(!result.access_token){
+      setStatus('Google authorization was cancelled or rejected. No email was sent.');
+      sendingRef.current=false;setBusy(false);return;
+     }
+     authRef.current={token:result.access_token,expiresAt:Date.now()+Math.max(0,result.expires_in??3000)*1000};
+     void sendApproved(result.access_token);
+    }
+   });
+   setStatus('Authorize Gmail to send the reviewed application to '+approved.to+' for '+approvedRole+'.');
    client.requestAccessToken();
-  }catch(e){setStatus(e instanceof Error?e.message:'Unable to prepare the application');setBusy(false);}
+  }catch(e){
+   setStatus(e instanceof Error?e.message:'Unable to prepare the application');
+   sendingRef.current=false;setBusy(false);
+  }
  }
  const row={display:'grid',gap:6,marginBottom:14} as const;
  const full={width:'100%',padding:12,border:'1px solid #ccd6df',borderRadius:8,background:'transparent',color:'inherit'} as const;
@@ -123,9 +152,10 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
    <div style={row}><label htmlFor="qa-subject">Subject</label><input id="qa-subject" style={full} value={draft.subject} onChange={e=>setDraft({...draft,subject:e.target.value})}/></div>
    <div style={row}><label htmlFor="qa-body">Message</label><textarea id="qa-body" style={full} rows={13} value={draft.body} onChange={e=>setDraft({...draft,body:e.target.value})}/></div>
    <p className="hint">Attached resume: {file?.name||'Not selected — upload once'}. Only the attached file is sent, not the saved resume text. Gmail account authorization is requested on send; no token is saved.</p>
-   <button type="button" className="btn primary" disabled={busy||!file} onClick={send}>{busy?'Sending...':'Approve and send with Gmail'}</button>
+   <button type="button" className="btn primary" disabled={busy||!file} onClick={()=>void send()}>{busy?'Sending — please do not click again':'Send reviewed email with Gmail'}</button>
   </section>}
+  {lastSent&&<section role="status" className="notice" style={{marginTop:18,padding:14,border:'1px solid #b7e4c7'}}><strong>Last application email sent successfully</strong><p><strong>To:</strong> {lastSent.to}</p><p><strong>Role:</strong> {lastSent.role}{lastSent.company?' · '+lastSent.company:''}</p><p><strong>Sent:</strong> {lastSent.time}</p><p>The email draft has been cleared. Your resume is ready for the next application.</p></section>}
   {status&&<p role="status" className="notice" style={{marginTop:18,padding:14}}>{status}</p>}
-  <p className="hint">Google OAuth setup required: configure an authorized browser origin and VITE_GOOGLE_CLIENT_ID in your deployment. Every email requires your approval. No automatic bulk sending.</p>
+  <p className="hint">Google OAuth setup required: configure an authorized browser origin and VITE_GOOGLE_CLIENT_ID in your deployment. Each email requires clicking Send. Google may still request authorization; access tokens remain in memory only. No automatic bulk sending.</p>
  </div></>;
 }
