@@ -24,7 +24,13 @@ function read(db:IDBDatabase,key:string):Promise<File|null>{
  return new Promise((resolve,reject)=>{
   const tx=db.transaction(STORE,'readonly');
   const req=tx.objectStore(STORE).get(key);
-  req.onsuccess=()=>resolve(req.result instanceof File?req.result:null);
+  req.onsuccess=()=>{
+   const value=req.result;
+   if(value instanceof File){resolve(value);return;}
+   if(value&&value.blob instanceof Blob&&typeof value.name==='string'){resolve(new File([value.blob],value.name,{type:value.blob.type,lastModified:value.lastModified||Date.now()}));return;}
+   if(value instanceof Blob){resolve(new File([value],key===KEY?'resume.pdf':key.replace('resume-version:','')+'.pdf',{type:value.type,lastModified:Date.now()}));return;}
+   resolve(null);
+  };
   req.onerror=()=>reject(req.error||Error('Unable to read saved resume'));
  });
 }
@@ -34,15 +40,28 @@ export async function saveResumeFile(file:File,id?:string,makeDefault=true):Prom
  try{await transact(db,'readwrite',store=>{if(id)store.put(file,versionKey(id));if(makeDefault)store.put(file,KEY);});}
  finally{db.close();}
 }
-export async function getResumeFile():Promise<File|null>{
+export async function getResumeFile(defaultResumeId?:string):Promise<File|null>{
  const db=await openDb();
- try{return await read(db,KEY);}finally{db.close();}
+ try{
+  // Recover from missing default key: resume versions have been stored separately since October.
+  const current=await read(db,KEY);
+  if(current)return current;
+  if(defaultResumeId){
+   const version=await read(db,versionKey(defaultResumeId));
+   if(version){await transact(db,'readwrite',store=>store.put(version,KEY));return version;}
+  }
+  return null;
+ }finally{db.close();}
+}
+export async function getResumeVersionFile(id:string):Promise<File|null>{
+ const db=await openDb();try{return await read(db,versionKey(id));}finally{db.close();}
 }
 export async function activateResumeFile(id:string):Promise<boolean>{
  const db=await openDb();
  try{
   const file=await read(db,versionKey(id));
-  await transact(db,'readwrite',store=>{if(file)store.put(file,KEY);else store.delete(KEY);});
+  // Do not erase a valid existing attachment when selecting a text-only version.
+  if(file)await transact(db,'readwrite',store=>store.put(file,KEY));
   return Boolean(file);
  }finally{db.close();}
 }
