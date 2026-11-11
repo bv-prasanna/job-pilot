@@ -1,9 +1,10 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {quickApplyDraft,gmailRawWithAttachment} from './lib/quickApply.mjs';
 import {extractResumeText} from './lib/resume';
-import {getResumeFile,saveResumeFile} from './lib/resumeStore';
+import {getResumeFile,getResumeVersionFile} from './lib/resumeStore';
 
-type Props={resumeText:string;sender:string};
+type SavedResume={id:string;name:string;text:string;updatedAt:string};
+type Props={resumeText:string;sender:string;defaultResumeId?:string;savedResumes:SavedResume[];onSaveResume:(version:SavedResume,file:File)=>Promise<void>;onChooseResume:(versionId:string)=>Promise<void>};
 type Draft={to:string;recipients:string[];subject:string;body:string;match:{score:number|null;matched:string[];missing:string[]}|null};
 declare global {interface Window {google?:{accounts:{oauth2:{initTokenClient:(options:{client_id:string;scope:string;callback:(result:{access_token?:string;error?:string})=>void})=>{requestAccessToken:()=>void}}}}}}
 function loadGoogleScript():Promise<void>{
@@ -17,15 +18,25 @@ function loadGoogleScript():Promise<void>{
   script.addEventListener('error',()=>reject(Error('Unable to load Google authorization')),{once:true});
  });
 }
-export default function QuickApply({resumeText,sender}:Props){
+export default function QuickApply({resumeText,sender,defaultResumeId,savedResumes,onSaveResume,onChooseResume}:Props){
  const[email,setEmail]=useState(''),[role,setRole]=useState(''),[recipientName,setRecipientName]=useState(''),[company,setCompany]=useState(''),[jd,setJd]=useState(''),[resumeForDraft,setResumeForDraft]=useState(resumeText);
+ const [selectedResumeId,setSelectedResumeId]=useState(defaultResumeId||'profile');
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[checkingResume,setCheckingResume]=useState(true),[replaceResume,setReplaceResume]=useState(false);
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
  useEffect(()=>{if(clientId)void loadGoogleScript().catch(()=>{});},[clientId]);
- useEffect(()=>{let active=true;void getResumeFile().then(saved=>{if(!active)return;if(saved){setFile(saved);setStatus('Saved resume ready: '+saved.name);}else{setStatus('No saved PDF/DOCX attachment in this browser. Select one once for Gmail applications.');}}).catch(()=>{if(active)setStatus('Browser resume storage is unavailable. Please select a file for this application.');}).finally(()=>{if(active)setCheckingResume(false);});return()=>{active=false};},[]);
+ useEffect(()=>{
+  let active=true;
+  void getResumeFile(defaultResumeId).then(saved=>{
+   if(!active)return;
+   if(saved){setFile(saved);setStatus('Saved resume ready: '+saved.name);}
+   else setStatus(savedResumes.length?'Resume text is saved, but a PDF/DOCX attachment is not available in this browser. Select it once to enable Gmail sending.':'No saved resume attachment in this browser. Upload a PDF/DOCX once for future applications.');
+  }).catch(()=>{if(active)setStatus('Private browser storage could not be accessed. Choose a resume file for this session.');})
+  .finally(()=>{if(active)setCheckingResume(false)});
+  return()=>{active=false};
+ },[defaultResumeId]);
  useEffect(()=>{setResumeForDraft(resumeText);setDraft(null)},[resumeText]);
  const match=draft?.match;
- function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText:resumeForDraft,sender,recipientName}));setStatus('Review the message carefully before sending. Resume attachment is required.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
+ function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText:resumeForDraft,sender,recipientName}));setStatus(file?'Review the draft. Saved resume attachment: '+file.name:'Review the draft. Select a PDF/DOCX attachment before sending.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
  async function send(){
   if(!draft||busy)return;
   if(!clientId){setStatus('Gmail sending is not configured. Set VITE_GOOGLE_CLIENT_ID when deploying.');return;}
@@ -61,10 +72,32 @@ export default function QuickApply({resumeText,sender}:Props){
    <div style={row}><label htmlFor="qa-company">Company (optional)</label><input id="qa-company" value={company} onChange={e=>{setCompany(e.target.value);setDraft(null)}} style={full} placeholder="Company name"/></div>
    <div style={row}><label htmlFor="qa-jd">Paste job description from the post (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>{setJd(e.target.value);setDraft(null)}} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
    <div style={row}><label htmlFor="qa-resume-text">Your resume text (for matching the JD)</label><textarea id="qa-resume-text" rows={7} value={resumeForDraft} onChange={e=>{setResumeForDraft(e.target.value);setDraft(null)}} style={full} placeholder="Paste your actual resume text here or use the saved resume from your profile. This is only used to write a relevant draft."/></div>
+   {savedResumes.length>0&&<div style={row}><label htmlFor="qa-saved-resume">Saved resume for this application</label>
+    <select id="qa-saved-resume" style={full} value={savedResumes.some(v=>v.id===selectedResumeId)?selectedResumeId:'profile'} onChange={e=>{
+      const id=e.target.value;
+      setSelectedResumeId(id);setDraft(null);
+      if(id==='profile'){setResumeForDraft(resumeText);void getResumeFile(defaultResumeId).then(saved=>{setFile(saved);setStatus(saved?'Using saved attachment: '+saved.name:'The current profile has no saved PDF/DOCX attachment.');}).catch(()=>setStatus('Could not load saved attachment.'));return;}
+      const version=savedResumes.find(v=>v.id===id);if(!version)return;
+      setResumeForDraft(version.text);
+      void getResumeVersionFile(id).then(saved=>{setFile(saved);setStatus(saved?'Using saved resume: '+saved.name:'This version has text only; select a PDF/DOCX file once to send by Gmail.');}).catch(()=>setStatus('Could not read this saved attachment.'));
+      void onChooseResume(id).catch(()=>{});
+    }}>
+     <option value="profile">Current profile resume</option>
+     {savedResumes.map(v=><option value={v.id} key={v.id}>{v.name}</option>)}
+    </select>
+    <p className="hint">Your saved resume filename and content are reused. No upload is required while its attachment is available.</p>
+   </div>}
    {checkingResume?<p className="hint">Checking your saved resume attachment…</p>:file&&!replaceResume?
     <div style={row}><strong>Resume attachment ready: {file.name}</strong><p className="hint">It will be reused automatically. No upload is needed.</p><button type="button" className="btn outline" onClick={()=>setReplaceResume(true)}>Replace resume (optional)</button></div>
     :<div style={row}><label htmlFor="qa-file">{file?'Select replacement PDF/DOCX':'Choose a PDF/DOCX resume once for future emails'}</label>
-    <input id="qa-file" type="file" accept=".pdf,.doc,.docx" onChange={e=>{const selected=e.target.files?.[0]||null;if(!selected)return;setFile(selected);setDraft(null);void saveResumeFile(selected).then(()=>{setStatus('Saved '+selected.name+' for future email applications.');setReplaceResume(false)}).catch(err=>setStatus(err instanceof Error?err.message:'Unable to save file'));if(/\.(pdf|docx)$/i.test(selected.name)){void extractResumeText(selected).then(text=>{setResumeForDraft(text);setStatus('Resume text extracted locally. Generate your tailored draft.')}).catch(err=>setStatus(err instanceof Error?err.message:'Resume could not be read.'));}}} style={full}/>
+    <input id="qa-file" type="file" accept=".pdf,.doc,.docx" onChange={e=>{const selected=e.target.files?.[0]||null;if(!selected)return;setDraft(null);void (async()=>{try{
+ if(!/\.(pdf|docx)$/i.test(selected.name))throw Error('Please choose a PDF or DOCX resume.');
+ const text=await extractResumeText(selected);
+ const version:SavedResume={id:crypto.randomUUID(),name:selected.name,text,updatedAt:new Date().toISOString()};
+ await onSaveResume(version,selected);
+ setFile(selected);setResumeForDraft(text);setSelectedResumeId(version.id);setReplaceResume(false);
+ setStatus('Saved '+selected.name+' for future applications. Attachment is ready.');
+ }catch(err){setStatus(err instanceof Error?err.message:'Resume could not be saved.');}})();}} style={full}/>
     {file&&<button className="btn outline" type="button" onClick={()=>setReplaceResume(false)}>Keep saved resume</button>}</div>}
    <p className="hint">The saved resume is reused on this browser and website address. Your profile resume text is used for drafting until you replace it.</p>
    <button className="btn primary" type="submit">Generate email draft</button>
