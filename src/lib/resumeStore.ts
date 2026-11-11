@@ -40,17 +40,17 @@ export async function saveResumeFile(file:File,id?:string,makeDefault=true):Prom
  try{await transact(db,'readwrite',store=>{if(id)store.put(file,versionKey(id));if(makeDefault)store.put(file,KEY);});}
  finally{db.close();}
 }
-export async function getResumeFile(defaultResumeId?:string):Promise<File|null>{
+export async function getResumeFile(defaultResumeId?:string,expectedName?:string):Promise<File|null>{
  const db=await openDb();
  try{
-  // Recover from missing default key: resume versions have been stored separately since October.
-  const current=await read(db,KEY);
-  if(current)return current;
   if(defaultResumeId){
    const version=await read(db,versionKey(defaultResumeId));
    if(version){await transact(db,'readwrite',store=>store.put(version,KEY));return version;}
   }
-  return null;
+  // Legacy uploads were stored only under the default key before resume-version support.
+  const legacy=await read(db,KEY);
+  if(defaultResumeId&&expectedName&&legacy?.name!==expectedName)return null;
+  return legacy;
  }finally{db.close();}
 }
 export async function getResumeVersionFile(id:string):Promise<File|null>{
@@ -60,8 +60,8 @@ export async function activateResumeFile(id:string):Promise<boolean>{
  const db=await openDb();
  try{
   const file=await read(db,versionKey(id));
-  // Do not erase a valid existing attachment when selecting a text-only version.
-  if(file)await transact(db,'readwrite',store=>store.put(file,KEY));
+  // Never send an unrelated attachment if the chosen resume contains only text.
+  await transact(db,'readwrite',store=>{if(file)store.put(file,KEY);else store.delete(KEY);});
   return Boolean(file);
  }finally{db.close();}
 }
