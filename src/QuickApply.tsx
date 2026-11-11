@@ -24,6 +24,7 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
  const [storageInfo,setStorageInfo]=useState('');
  const [editResumeText,setEditResumeText]=useState(false);
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[checkingResume,setCheckingResume]=useState(true),[replaceResume,setReplaceResume]=useState(false);
+ const emailInputRef=useRef<HTMLInputElement>(null);
  const sendingRef=useRef(false);
  const sentDraftRef=useRef<Draft|null>(null);
  const authRef=useRef<{token:string;expiresAt:number}|null>(null);
@@ -77,6 +78,8 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
     setLastSent({to:approved.to,role:approvedRole,company:approvedCompany,time});
     setStatus('Email sent successfully to '+approved.to+' for '+approvedRole+(approvedCompany?' at '+approvedCompany:'')+'. The draft has been cleared.');
     setDraft(null);setEmail('');setRole('');setRecipientName('');setCompany('');setJd('');
+    // The user can immediately paste the next address without scrolling back manually.
+    requestAnimationFrame(()=>{emailInputRef.current?.focus({preventScroll:true});emailInputRef.current?.scrollIntoView({block:'center',behavior:'smooth'});});
    }catch(e){
     setStatus('Sending not confirmed for '+approved.to+' / '+approvedRole+': '+(e instanceof Error?e.message:'Unknown error')+'. Check Gmail Sent before retrying.');
    }finally{sendingRef.current=false;setBusy(false);}
@@ -107,16 +110,23 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
  const full={width:'100%',padding:12,border:'1px solid #ccd6df',borderRadius:8,background:'transparent',color:'inherit'} as const;
  return <><div className="sectionhead"><div><h1>Apply to a Job by Email</h1><p>For your personal job search: paste the email from a job post, choose the role, and prepare your application. Nothing is sent without your approval.</p></div></div>
  <div className="panel" style={{padding:24,maxWidth:900}}>
+  {lastSent&&<section role="status" aria-live="polite" className="notice" style={{marginBottom:16,padding:14,border:'1px solid #b7e4c7'}}><strong>Email sent successfully</strong><p><strong>To:</strong> {lastSent.to} · <strong>Role:</strong> {lastSent.role}{lastSent.company?' · '+lastSent.company:''}</p><p>Sent: {lastSent.time}. The draft was cleared; enter the next recipient below.</p></section>}
+  {status&&!lastSent&&<p role="status" className="notice" style={{marginBottom:16,padding:12}}>{status}</p>}
   <form onSubmit={prepare}>
-   <div style={row}><label htmlFor="qa-to">Email address from the job post *</label><input id="qa-to" type="text" required value={email} onChange={e=>{setEmail(e.target.value);setDraft(null)}} style={full} placeholder="hr@company.com"/></div>
+   <div style={row}><label htmlFor="qa-to">Email address from the job post *</label><input id="qa-to" ref={emailInputRef} type="text" required value={email} onChange={e=>{setEmail(e.target.value);setDraft(null)}} style={full} placeholder="hr@company.com"/></div>
    <div style={row}><label htmlFor="qa-contact">Contact name (optional)</label><input id="qa-contact" value={recipientName} onChange={e=>{setRecipientName(e.target.value);setDraft(null)}} style={full} placeholder="Amol"/></div>
    <p className="hint">Usually enter one address. If the same post lists multiple addresses, separate them with commas. They will receive one shared email, not separate applications.</p><div style={row}><label htmlFor="qa-role">Role or position *</label><input id="qa-role" required value={role} onChange={e=>{setRole(e.target.value);setDraft(null)}} style={full} placeholder="Engineering Manager"/></div>
    <div style={row}><label htmlFor="qa-company">Company (optional)</label><input id="qa-company" value={company} onChange={e=>{setCompany(e.target.value);setDraft(null)}} style={full} placeholder="Company name"/></div>
    <div style={row}><label htmlFor="qa-jd">Paste job description from the post (optional)</label><textarea id="qa-jd" value={jd} onChange={e=>{setJd(e.target.value);setDraft(null)}} rows={7} maxLength={18000} style={full} placeholder="Paste the job description if available. Without one, a generic role-specific message will be prepared."/></div>
-   {resumeForDraft.trim()&&!editResumeText?
-    <div style={row}><strong>Saved resume text ready ({resumeForDraft.length.toLocaleString()} characters)</strong><p className="hint">Used automatically to personalize your email. You do not need to paste it again.</p><button type="button" className="btn outline" onClick={()=>setEditResumeText(true)}>Edit resume text (optional)</button></div>
-    :<div style={row}><label htmlFor="qa-resume-text">Resume text for personalizing the email</label><textarea id="qa-resume-text" rows={7} value={resumeForDraft} onChange={e=>{setResumeForDraft(e.target.value);setDraft(null)}} style={full} placeholder="Save a resume in Resume Management or paste its text here once."/>{resumeForDraft.trim()&&<button type="button" className="btn outline" onClick={()=>setEditResumeText(false)}>Use saved resume text</button>}</div>}
-   {savedResumes.length>0&&<div style={row}><label htmlFor="qa-saved-resume">Saved resume for this application</label>
+   <div style={{border:'1px solid #d7e2ed',borderRadius:10,padding:'10px 12px',marginBottom:14}}>
+    <div style={{display:'flex',gap:10,alignItems:'center',justifyContent:'space-between',flexWrap:'wrap'}}>
+     <span><strong>Resume:</strong> {file?.name||savedResumes.find(v=>v.id===selectedResumeId)?.name||savedResumes.find(v=>v.id===defaultResumeId)?.name||'No PDF/DOCX saved'} {file?'· Ready to attach':'· Attachment unavailable'}</span>
+     <span className="hint">{resumeForDraft.trim()?'Text ready':'No saved text'}</span>
+    </div>
+    <details style={{marginTop:6}}>
+     <summary style={{cursor:'pointer',fontWeight:600}}>Change resume or edit text</summary>
+     <div style={{paddingTop:12}}>
+   {savedResumes.length>0&&<div style={row}><label htmlFor="qa-saved-resume">Choose another saved resume</label>
     <select id="qa-saved-resume" style={full} value={savedResumes.some(v=>v.id===selectedResumeId)?selectedResumeId:'profile'} onChange={e=>{
       const id=e.target.value;
       setSelectedResumeId(id);setDraft(null);
@@ -129,12 +139,15 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
      <option value="profile">Current profile resume</option>
      {savedResumes.map(v=><option value={v.id} key={v.id}>{v.name}</option>)}
     </select>
-    <p className="hint">Your saved resume filename and content are reused. No upload is required while its attachment is available.</p>
+
    </div>}
-   {savedResumes.length>0&&<p className="hint">Current saved resume: <strong>{savedResumes.find(v=>v.id===selectedResumeId)?.name||savedResumes.find(v=>v.id===defaultResumeId)?.name||'Profile resume'}</strong>. File attachment: <strong>{file?.name||'not available on this browser'}</strong>.</p>}
-   {storageInfo&&<p className="hint" role="status">{storageInfo}</p>}
+
+   {resumeForDraft.trim()&&!editResumeText?
+    <div style={row}><strong>Saved resume text ready ({resumeForDraft.length.toLocaleString()} characters)</strong><p className="hint">Used automatically to personalize your email. You do not need to paste it again.</p><button type="button" className="btn outline" onClick={()=>setEditResumeText(true)}>Edit resume text (optional)</button></div>
+    :<div style={row}><label htmlFor="qa-resume-text">Resume text for personalizing the email</label><textarea id="qa-resume-text" rows={7} value={resumeForDraft} onChange={e=>{setResumeForDraft(e.target.value);setDraft(null)}} style={full} placeholder="Save a resume in Resume Management or paste its text here once."/>{resumeForDraft.trim()&&<button type="button" className="btn outline" onClick={()=>setEditResumeText(false)}>Use saved resume text</button>}</div>}
+
    {checkingResume?<p className="hint">Checking your saved resume attachment…</p>:file&&!replaceResume?
-    <div style={row}><strong>Resume attachment ready: {file.name}</strong><p className="hint">It will be reused automatically. No upload is needed.</p><button type="button" className="btn outline" onClick={()=>setReplaceResume(true)}>Replace resume (optional)</button></div>
+    <div style={row}><strong>Saved attachment: {file.name}</strong><button type="button" className="btn outline" onClick={()=>setReplaceResume(true)}>Replace resume (optional)</button></div>
     :<div style={row}><label htmlFor="qa-file">{file?'Select replacement PDF/DOCX':'Choose a PDF/DOCX resume once for future emails'}</label>
     <input id="qa-file" type="file" accept=".pdf,.doc,.docx" onChange={e=>{const selected=e.target.files?.[0]||null;if(!selected)return;setDraft(null);void (async()=>{try{
  if(!/\.(pdf|docx)$/i.test(selected.name))throw Error('Please choose a PDF or DOCX resume.');
@@ -145,7 +158,11 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
  setStatus('Saved '+selected.name+' for future applications. Attachment is ready.');
  }catch(err){setStatus(err instanceof Error?err.message:'Resume could not be saved.');}})();}} style={full}/>
     {file&&<button className="btn outline" type="button" onClick={()=>setReplaceResume(false)}>Keep saved resume</button>}</div>}
-   <p className="hint">The saved resume is reused on this browser and website address. Your profile resume text is used for drafting until you replace it.</p>
+
+      {storageInfo&&!file&&<p className="hint" role="status">{storageInfo}</p>}
+     </div>
+    </details>
+   </div>
    <button className="btn primary" type="submit">Generate email draft</button>
   </form>
   {draft&&<section style={{borderTop:'1px solid #ccd6df',marginTop:24,paddingTop:20}}>
@@ -157,8 +174,6 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
    <p className="hint">Attached resume: {file?.name||'Not selected — upload once'}. Only the attached file is sent, not the saved resume text. Gmail account authorization is requested on send; no token is saved.</p>
    <button type="button" className="btn primary" disabled={busy||!file} onClick={()=>void send()}>{busy?'Sending — please do not click again':'Send reviewed email with Gmail'}</button>
   </section>}
-  {lastSent&&<section role="status" className="notice" style={{marginTop:18,padding:14,border:'1px solid #b7e4c7'}}><strong>Last application email sent successfully</strong><p><strong>To:</strong> {lastSent.to}</p><p><strong>Role:</strong> {lastSent.role}{lastSent.company?' · '+lastSent.company:''}</p><p><strong>Sent:</strong> {lastSent.time}</p><p>The email draft has been cleared. Your resume is ready for the next application.</p></section>}
-  {status&&<p role="status" className="notice" style={{marginTop:18,padding:14}}>{status}</p>}
   <p className="hint">Google OAuth setup required: configure an authorized browser origin and VITE_GOOGLE_CLIENT_ID in your deployment. Each email requires clicking Send. Google may still request authorization; access tokens remain in memory only. No automatic bulk sending.</p>
  </div></>;
 }
