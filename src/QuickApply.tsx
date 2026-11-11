@@ -27,7 +27,7 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
  useEffect(()=>{if(clientId)void loadGoogleScript().catch(()=>{});},[clientId]);
  useEffect(()=>{
   let active=true;
-  void getResumeFile(defaultResumeId).then(saved=>{
+  void getResumeFile(defaultResumeId,savedResumes.find(v=>v.id===defaultResumeId)?.name).then(saved=>{
    if(!active)return;
    if(saved){setFile(saved);setStatus('Saved resume ready: '+saved.name);}
    else setStatus(savedResumes.length?'Resume text is saved, but a PDF/DOCX attachment is not available in this browser. Select it once to enable Gmail sending.':'No saved resume attachment in this browser. Upload a PDF/DOCX once for future applications.');
@@ -79,7 +79,7 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
     <select id="qa-saved-resume" style={full} value={savedResumes.some(v=>v.id===selectedResumeId)?selectedResumeId:'profile'} onChange={e=>{
       const id=e.target.value;
       setSelectedResumeId(id);setDraft(null);
-      if(id==='profile'){setResumeForDraft(resumeText);void getResumeFile(defaultResumeId).then(saved=>{setFile(saved);setStatus(saved?'Using saved attachment: '+saved.name:'The current profile has no saved PDF/DOCX attachment.');}).catch(()=>setStatus('Could not load saved attachment.'));return;}
+      if(id==='profile'){setResumeForDraft(resumeText);void getResumeFile(defaultResumeId,savedResumes.find(v=>v.id===defaultResumeId)?.name).then(saved=>{setFile(saved);setStatus(saved?'Using saved attachment: '+saved.name:'The current profile has no saved PDF/DOCX attachment.');}).catch(()=>setStatus('Could not load saved attachment.'));return;}
       const version=savedResumes.find(v=>v.id===id);if(!version)return;
       setResumeForDraft(version.text);
       void getResumeVersionFile(id).then(saved=>{setFile(saved);setStatus(saved?'Using saved resume: '+saved.name:'This version has text only; select a PDF/DOCX file once to send by Gmail.');}).catch(()=>setStatus('Could not read this saved attachment.'));
