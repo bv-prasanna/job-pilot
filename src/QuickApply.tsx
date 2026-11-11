@@ -51,7 +51,7 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
  },[defaultResumeId]);
  useEffect(()=>{setResumeForDraft(resumeText);setDraft(null)},[resumeText]);
  const match=draft?.match;
- function prepare(e:FormEvent){e.preventDefault();try{setDraft(quickApplyDraft({email,role,company,jd,resumeText:resumeForDraft,sender,recipientName}));setStatus(file?'Review the draft. Saved resume attachment: '+file.name:'Review the draft. Select a PDF/DOCX attachment before sending.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
+ function prepare(e:FormEvent){e.preventDefault();setLastSent(null);try{setDraft(quickApplyDraft({email,role,company,jd,resumeText:resumeForDraft,sender,recipientName}));setStatus(file?'Review the draft. Saved resume attachment: '+file.name:'Review the draft. Select a PDF/DOCX attachment before sending.')}catch(e){setStatus(e instanceof Error?e.message:'Unable to generate a draft')}}
  async function send(){
   // The send button itself is explicit approval. No second browser confirm popup.
   if(!draft||busy||sendingRef.current)return;
