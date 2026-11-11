@@ -25,6 +25,7 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
  const [editResumeText,setEditResumeText]=useState(false);
  const[file,setFile]=useState<File|null>(null),[draft,setDraft]=useState<Draft|null>(null),[status,setStatus]=useState(''),[busy,setBusy]=useState(false),[checkingResume,setCheckingResume]=useState(true),[replaceResume,setReplaceResume]=useState(false);
  const sendingRef=useRef(false);
+ const sentDraftRef=useRef<Draft|null>(null);
  const authRef=useRef<{token:string;expiresAt:number}|null>(null);
  const [lastSent,setLastSent]=useState<{to:string;role:string;company:string;time:string}|null>(null);
  const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID as string|undefined;
@@ -53,6 +54,7 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
  async function send(){
   // The send button itself is explicit approval. No second browser confirm popup.
   if(!draft||busy||sendingRef.current)return;
+  if(sentDraftRef.current===draft){setStatus('This application was already sent. Enter the next job and generate a new draft.');return;}
   if(!clientId){setStatus('Gmail sending is not configured.');return;}
   if(!file){setStatus('A PDF or DOCX resume is required before sending.');return;}
   const approved={...draft,recipients:[...draft.recipients]};
@@ -71,6 +73,7 @@ export default function QuickApply({resumeText,sender,defaultResumeId,savedResum
     const payload=await response.json().catch(()=>({}));
     if(!response.ok||!payload.id)throw Error(payload.error?.message||'Gmail did not confirm sending');
     const time=new Date().toLocaleString();
+    sentDraftRef.current=draft;
     setLastSent({to:approved.to,role:approvedRole,company:approvedCompany,time});
     setStatus('Email sent successfully to '+approved.to+' for '+approvedRole+(approvedCompany?' at '+approvedCompany:'')+'. The draft has been cleared.');
     setDraft(null);setEmail('');setRole('');setRecipientName('');setCompany('');setJd('');
