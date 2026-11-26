@@ -54,7 +54,7 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
  const restrictedCount=serverExcludedCount+ranked.filter(j=>j.eligibility.status==='excluded').length;
  const possible=(showUnconfirmed?[...eligible,...unconfirmed]:eligible).filter(j=>sourceFilter==='all'||(sourceFilter==='employer'?j.employer:!j.employer));
  const filtered=possible.filter(j=>!locationTerms.length||locationTerms.some(v=>v==='anywhere'||(v==='remote'&&/remote|worldwide/i.test(j.location))||(j.location+' '+j.description.slice(0,250)).toLowerCase().includes(v)));
- const unhandled=filtered.filter(j=>showHandled||!feedback[j.url]||feedback[j.url]==='saved');
+ const unhandled=filtered.filter(j=>showHandled||(resultView==='applied'&&feedback[j.url]==='applied')||!feedback[j.url]||feedback[j.url]==='saved');
  const statusFiltered=unhandled.filter(j=>resultView==='all'||feedback[j.url]===resultView);
  const visible=onlyRelevant?statusFiltered.filter(j=>j.match.score===null||j.match.score>=15):statusFiltered;
  const handledCount=filtered.filter(j=>['applied','not-interested','hidden'].includes(feedback[j.url])).length;
