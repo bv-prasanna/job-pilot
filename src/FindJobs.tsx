@@ -8,6 +8,9 @@ type Job={id:string;title:string;company:string;location:string;description:stri
 const plain=(s:string)=>s.replace(/<[^>]*>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
 const searchUrl='/api/job-search';
 type SavedResume={id:string;name:string;text:string;updatedAt:string};
+type Feedback='saved'|'applied'|'not-interested'|'hidden';
+const FEEDBACK_KEY='jobpilot.job-feedback.v1';
+function readFeedback():Record<string,Feedback>{try{const v=JSON.parse(localStorage.getItem(FEEDBACK_KEY)||'{}');return v&&typeof v==='object'?v:{}}catch{return {}}}
 export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave,onUploadResume,onManageResumes}:{resumeText:string;savedResumes:SavedResume[];defaultResumeId?:string;onSave:(job:Job)=>void;onUploadResume:(version:SavedResume,file:File)=>Promise<void>;onManageResumes:()=>void}){
  const [selectedResume,setSelectedResume]=useState(()=>defaultResumeId||savedResumes.find(v=>v.text===resumeText)?.id||'profile');
  const [uploading,setUploading]=useState(false),[uploadMessage,setUploadMessage]=useState(''),[showResumeUpload,setShowResumeUpload]=useState(!resumeText.trim()&&!savedResumes.length);
@@ -15,6 +18,10 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
  const resume=selectedVersion?.text||(selectedResume==='profile'?resumeText:'');
  const selectedName=selectedVersion?.name||(resumeText.trim()?'Current profile resume':'No resume saved');
  const [query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
+ const [feedback,setFeedback]=useState<Record<string,Feedback>>(readFeedback);
+ const [showHandled,setShowHandled]=useState(false),[resultView,setResultView]=useState<'all'|'saved'|'applied'>('all');
+ useEffect(()=>{try{localStorage.setItem(FEEDBACK_KEY,JSON.stringify(feedback))}catch{}},[feedback]);
+ function mark(job:Job,status:Feedback){setFeedback(prev=>({...prev,[job.url]:status}));if(status==='saved')onSave(job,'Saved');if(status==='applied')onSave(job,'Applied');}
  async function uploadResume(file:File|undefined){
   if(!file)return;
   setUploading(true);setUploadMessage('');
@@ -47,13 +54,16 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
  const restrictedCount=serverExcludedCount+ranked.filter(j=>j.eligibility.status==='excluded').length;
  const possible=(showUnconfirmed?[...eligible,...unconfirmed]:eligible).filter(j=>sourceFilter==='all'||(sourceFilter==='employer'?j.employer:!j.employer));
  const filtered=possible.filter(j=>!locationTerms.length||locationTerms.some(v=>v==='anywhere'||(v==='remote'&&/remote|worldwide/i.test(j.location))||(j.location+' '+j.description.slice(0,250)).toLowerCase().includes(v)));
- const visible=onlyRelevant?filtered.filter(j=>j.match.score===null||j.match.score>=15):filtered;
+ const unhandled=filtered.filter(j=>showHandled||!feedback[j.url]||feedback[j.url]==='saved');
+ const statusFiltered=unhandled.filter(j=>resultView==='all'||feedback[j.url]===resultView);
+ const visible=onlyRelevant?statusFiltered.filter(j=>j.match.score===null||j.match.score>=15):statusFiltered;
+ const handledCount=filtered.filter(j=>['applied','not-interested','hidden'].includes(feedback[j.url])).length;
  async function search(){
   if(busy)return;
   setBusy(true);setError('');setSearched(false);
   try{
    const q=query.trim().slice(0,80);if(!q)throw Error('Enter a position or search keyword.');
-   const response=await fetch(searchUrl+'?search='+encodeURIComponent(q)+(boards.trim()?'&boards='+encodeURIComponent(boards.trim()):''),{headers:{Accept:'application/json'}});
+   const response=await fetch(searchUrl+'?search='+encodeURIComponent(q)+(boards.trim()?'&boards='+encodeURIComponent(boards.trim()):'')+'&_='+Date.now(),{cache:'no-store',headers:{Accept:'application/json'}});
    if(!response.ok)throw Error('Job source is temporarily unavailable (HTTP '+response.status+').');
    const payload=await response.json();
    if(!Array.isArray(payload.jobs))throw Error('Job source returned an unexpected response.');
@@ -96,10 +106,12 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
   <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14,alignItems:"center"}}><a className="btn outline" href={"https://www.google.com/search?q="+encodeURIComponent(query+" jobs "+(location||"Bengaluru India"))} target="_blank" rel="noopener noreferrer">Search Google Jobs ↗</a><a className="btn outline" href={"https://www.linkedin.com/jobs/search/?keywords="+encodeURIComponent(query)+"&location="+encodeURIComponent(location||"Bengaluru, Karnataka, India")} target="_blank" rel="noopener noreferrer">Search LinkedIn Jobs ↗</a><a className="btn outline" href={"https://www.google.com/search?q="+encodeURIComponent("site:jobs.lever.co "+query+" "+(location||"India OR remote"))} target="_blank" rel="noopener noreferrer">Search Lever-hosted jobs ↗</a><a className="btn outline" href={"https://www.ziprecruiter.in/jobs/search?q="+encodeURIComponent(query)+"&l="+encodeURIComponent(location||"Bengaluru, India")} target="_blank" rel="noopener noreferrer" style={{background:"#173b65",borderColor:"#173b65",color:"#fff",gap:8}}><img src="https://www.ziprecruiter.in/uploads/tenant/logo/11270/ziprecruiter-whitetext.png?v=20260319" alt="" style={{height:18,width:"auto",maxWidth:112,objectFit:"contain"}}/>India jobs ↗</a></div>
   <p className="hint">Google, LinkedIn, Lever-hosted job search and ZipRecruiter India open live searches in a new tab; these external listings are not imported or counted in JobPilot results. Lever is an applicant-tracking platform, not a central job board, so this searches publicly indexed employer postings hosted on jobs.lever.co. Apply directly on each employer's application page and check for any paid-service requirement.</p>
   <p className="hint">Only the search keywords are sent to the jobs source through a Cloudflare Pages Function. Your resume stays in this browser; the displayed score is keyword overlap, not an ATS score. Listings may have geographic restrictions.</p>
-  <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}><button className="btn primary" disabled={busy} onClick={()=>void search()}>{busy?'Searching...':'Search India-eligible jobs'}</button><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={onlyRelevant} onChange={e=>setOnlyRelevant(e.target.checked)}/> Hide low resume overlaps</label><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={showUnconfirmed} onChange={e=>setShowUnconfirmed(e.target.checked)}/> Also show location-unverified jobs</label></div>
+  <div style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}><button className="btn primary" disabled={busy} onClick={()=>void search()}>{busy?'Searching...':searched?'Refresh jobs':'Search India-eligible jobs'}</button><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={onlyRelevant} onChange={e=>setOnlyRelevant(e.target.checked)}/> Hide low resume overlaps</label><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={showUnconfirmed} onChange={e=>setShowUnconfirmed(e.target.checked)}/> Also show location-unverified jobs</label></div>
   {error&&<p role="alert" style={{marginTop:12}}>{error}</p>}
  </section>
  {searched&&<section className="panel" style={{padding:24,marginTop:18}}><h2>{visible.length} India-relevant jobs shown</h2>
+  <p className="hint">{handledCount} previously actioned listing(s) are hidden by default. Your choices are saved in this browser and applied when the same listing appears again.</p>
+  <div style={{display:'flex',gap:8,flexWrap:'wrap',margin:'12px 0'}}><button className={'btn '+(resultView==='all'?'primary':'outline')} onClick={()=>setResultView('all')}>All</button><button className={'btn '+(resultView==='saved'?'primary':'outline')} onClick={()=>setResultView('saved')}>Saved</button><button className={'btn '+(resultView==='applied'?'primary':'outline')} onClick={()=>setResultView('applied')}>Applied</button><label style={{display:'flex',gap:8,alignItems:'center'}}><input type="checkbox" checked={showHandled} onChange={e=>setShowHandled(e.target.checked)}/> Include not interested / hidden / applied</label></div>
   <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap',marginBottom:12}}><label htmlFor="jf-source">Show sources</label><select id="jf-source" value={sourceFilter} onChange={e=>setSourceFilter(e.target.value)}><option value="all">All eligible sources (employer postings first)</option><option value="employer">Direct employer career boards</option><option value="feeds">Remote job feeds</option></select></div>
   <p className="hint">Direct employer postings from public Greenhouse, Lever and Ashby boards are ranked ahead of aggregator listings. This does not guarantee an employer will accept every application.</p>
   <p className="hint">Eligibility: {eligible.length} explicitly India/worldwide · {unconfirmed.length} not verified (hidden by default) · {restrictedCount} excluded for foreign-location restrictions. JobPilot cannot independently guarantee employer eligibility; verify each live application page.</p>
@@ -109,11 +121,14 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
   {!resume.trim()&&<p className="hint">Add your resume text above to calculate matches.</p>}
   {visible.map(j=><article key={j.id} style={{padding:'16px 0',borderBottom:'1px solid #dce6eb'}}>
    <h3 style={{marginBottom:6}}>{j.title}</h3><p>{j.company} · {j.location} · {j.source}{j.salary?' · '+j.salary:''}</p>
-   <p className="hint">{j.eligibility.status==='eligible'?'India/worldwide eligibility indicated':'Location eligibility unverified'} · {j.match.score===null?'Resume match unavailable':j.match.score+'% resume keyword overlap'}{j.posted?' · Posted '+(Number(j.posted)?new Date(Number(j.posted)).toISOString().slice(0,10):j.posted.slice(0,10)):''}</p>
+   <p className="hint">{j.eligibility.status==='eligible'?'India/worldwide eligibility indicated':'Location eligibility unverified'} · {j.match.score===null?'Profile match unavailable':j.match.score+'% profile match'} · {Math.round(j.occupation*100)}% role match{j.posted?' · Posted '+(Number(j.posted)?new Date(Number(j.posted)).toISOString().slice(0,10):j.posted.slice(0,10)):''}</p>
    <p>{j.description.slice(0,350)}{j.description.length>350?'…':''}</p>
    <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
     <a className="btn primary" href={j.url} target="_blank" rel="noopener noreferrer">Open job &amp; apply ↗</a>
-    <button className="btn outline" onClick={()=>onSave(j)}>Save to my jobs</button>
+    {feedback[j.url]==='saved'?<button className="btn outline" onClick={()=>mark(j,'saved')}>✓ Saved</button>:<button className="btn outline" onClick={()=>mark(j,'saved')}>Save</button>}
+    <button className="btn outline" onClick={()=>mark(j,'applied')}>Applied</button>
+    <button className="btn outline" onClick={()=>mark(j,'not-interested')}>Not interested</button>
+    <button className="btn outline" onClick={()=>mark(j,'hidden')}>Don’t show again</button>
    </div>
   </article>)}
   {!visible.length&&<p>No jobs with confirmed India/worldwide eligibility match these filters. You can optionally show location-unverified jobs, or try the Google Jobs and LinkedIn links above.</p>}
