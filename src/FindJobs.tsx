@@ -15,7 +15,7 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
  const [selectedResume,setSelectedResume]=useState(()=>defaultResumeId||savedResumes.find(v=>v.text===resumeText)?.id||'profile');
  const [uploading,setUploading]=useState(false),[uploadMessage,setUploadMessage]=useState(''),[showResumeUpload,setShowResumeUpload]=useState(!resumeText.trim()&&!savedResumes.length);
  const selectedVersion=savedResumes.find(v=>v.id===selectedResume);
- const resume=selectedVersion?.text||(selectedResume==='profile'?resumeText:'');
+ const resume=selectedVersion?.text||resumeText||'';
  const selectedName=selectedVersion?.name||(resumeText.trim()?'Current profile resume':'No resume saved');
  const [query,setQuery]=useState('Engineering Manager'),[jobs,setJobs]=useState<Job[]>([]);
  const [feedback,setFeedback]=useState<Record<string,Feedback>>(readFeedback);
@@ -121,7 +121,19 @@ export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave
   {!resume.trim()&&<p className="hint">Add your resume text above to calculate matches.</p>}
   {visible.map(j=><article key={j.id} style={{padding:'16px 0',borderBottom:'1px solid #dce6eb'}}>
    <h3 style={{marginBottom:6}}>{j.title}</h3><p>{j.company} · {j.location} · {j.source}{j.salary?' · '+j.salary:''}</p>
-   <p className="hint">{j.eligibility.status==='eligible'?'India/worldwide eligibility indicated':'Location eligibility unverified'} · {j.match.score===null?'Profile match unavailable':j.match.score+'% profile match'} · {Math.round(j.occupation*100)}% role match{j.posted?' · Posted '+(Number(j.posted)?new Date(Number(j.posted)).toISOString().slice(0,10):j.posted.slice(0,10)):''}</p>
+   <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'stretch',margin:'10px 0'}}>
+    <div style={{padding:'10px 14px',borderRadius:10,border:'1px solid var(--border, #dce6eb)',background:'var(--surface, #f7fafc)',minWidth:132}}>
+     <div className="hint" style={{margin:0,fontSize:12}}>PROFILE MATCH</div>
+     <strong style={{fontSize:22,lineHeight:1.4}}>{j.match.score===null?'—':j.match.score+'%'}</strong>
+     <div className="hint" style={{margin:0,fontSize:11}}>{j.match.score===null?'Add/select resume text':'Resume keyword overlap'}</div>
+    </div>
+    <div style={{padding:'10px 14px',borderRadius:10,border:'1px solid var(--border, #dce6eb)',background:'var(--surface, #f7fafc)',minWidth:132}}>
+     <div className="hint" style={{margin:0,fontSize:12}}>ROLE MATCH</div>
+     <strong style={{fontSize:22,lineHeight:1.4}}>{Math.round(j.occupation*100)}%</strong>
+     <div className="hint" style={{margin:0,fontSize:11}}>Search title relevance</div>
+    </div>
+   </div>
+   <p className="hint">{j.eligibility.status==='eligible'?'India/worldwide eligibility indicated':'Location eligibility unverified'}{j.posted?' · Posted '+(Number(j.posted)?new Date(Number(j.posted)).toISOString().slice(0,10):j.posted.slice(0,10)):''}</p>
    <p>{j.description.slice(0,350)}{j.description.length>350?'…':''}</p>
    <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
     <a className="btn primary" href={j.url} target="_blank" rel="noopener noreferrer">Open job &amp; apply ↗</a>
