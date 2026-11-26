@@ -11,7 +11,7 @@ type SavedResume={id:string;name:string;text:string;updatedAt:string};
 type Feedback='saved'|'applied'|'not-interested'|'hidden';
 const FEEDBACK_KEY='jobpilot.job-feedback.v1';
 function readFeedback():Record<string,Feedback>{try{const v=JSON.parse(localStorage.getItem(FEEDBACK_KEY)||'{}');return v&&typeof v==='object'?v:{}}catch{return {}}}
-export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave,onUploadResume,onManageResumes}:{resumeText:string;savedResumes:SavedResume[];defaultResumeId?:string;onSave:(job:Job)=>void;onUploadResume:(version:SavedResume,file:File)=>Promise<void>;onManageResumes:()=>void}){
+export default function FindJobs({resumeText,savedResumes,defaultResumeId,onSave,onUploadResume,onManageResumes}:{resumeText:string;savedResumes:SavedResume[];defaultResumeId?:string;onSave:(job:Job,status?:'Saved'|'Applied')=>void;onUploadResume:(version:SavedResume,file:File)=>Promise<void>;onManageResumes:()=>void}){
  const [selectedResume,setSelectedResume]=useState(()=>defaultResumeId||savedResumes.find(v=>v.text===resumeText)?.id||'profile');
  const [uploading,setUploading]=useState(false),[uploadMessage,setUploadMessage]=useState(''),[showResumeUpload,setShowResumeUpload]=useState(!resumeText.trim()&&!savedResumes.length);
  const selectedVersion=savedResumes.find(v=>v.id===selectedResume);
