@@ -1,6 +1,6 @@
 // Cloudflare Pages Function: merge public remote-job sources with attribution.
 // Only search keywords are sent upstream; candidate resumes stay on the device.
-const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json','cache-control':'public,max-age=900','x-content-type-options':'nosniff'}});
+const reply=(status,body)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json','cache-control':'no-store, no-cache, must-revalidate','pragma':'no-cache','x-content-type-options':'nosniff'}});
 import {titleRelevance} from '../../src/lib/titleRelevance.mjs';
 import {indiaEligibility} from '../../src/lib/indiaEligibility.mjs';
 // Verified public employer career-board IDs with India/Bengaluru postings.
@@ -12,7 +12,7 @@ const DEFAULT_BOARDS=[
 ];
 const scrub=x=>String(x??'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
 async function load(url){
- const response=await fetch(url,{headers:{accept:'application/json'},signal:AbortSignal.timeout(12000),cf:{cacheTtl:1800,cacheEverything:true}});
+ const response=await fetch(url,{headers:{accept:'application/json'},signal:AbortSignal.timeout(12000)});
  if(!response.ok)throw Error('HTTP '+response.status);
  const body=await response.text();if(body.length>4000000)throw Error('Oversized feed');
  return JSON.parse(body);
