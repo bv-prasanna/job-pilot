@@ -46,8 +46,8 @@ return <div className="shell"><aside className={'sidebar '+(mobile?'open':'')}><
  }else{await clearResumeFile().catch(()=>{});}
  update(d=>({...d,resumes:[...(d.resumes||[]),version],defaultResumeId:version.id,candidate:{...d.candidate,resume:version.text}}));
  toast('Resume saved for future job searches: '+version.name);
- }} onSave={item=>{
- const candidate:Job={id:newId(),title:item.title,company:item.company,location:item.location,remote:'Remote',description:item.description,url:item.url,salary:item.salary,status:'Saved',createdAt:today(),notes:'Source: '+item.source+(item.posted?' | Published: '+item.posted:'')};
+ }} onSave={(item,status='Saved')=>{
+ const candidate:Job={id:newId(),title:item.title,company:item.company,location:item.location,remote:'Remote',description:item.description,url:item.url,salary:item.salary,status,createdAt:today(),notes:'Source: '+item.source+(item.posted?' | Published: '+item.posted:'')};
  update(d=>({...d,jobs:d.jobs.some(x=>x.url===candidate.url)?d.jobs:[candidate,...d.jobs]}));toast('Job saved to your personal opportunities list');
  }}/>}
 {view==='quick-apply'&&<QuickApply resumeText={data.candidate.resume} sender={data.candidate.name} savedResumes={data.resumes||[]} defaultResumeId={data.defaultResumeId}
