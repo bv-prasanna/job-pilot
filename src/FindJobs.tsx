@@ -1,4 +1,4 @@
-import {useMemo,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import {matchResume} from './lib/core.mjs';
 import {titleRelevance} from './lib/titleRelevance.mjs';
 import {extractResumeText} from './lib/resume';
