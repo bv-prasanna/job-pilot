@@ -48,7 +48,7 @@ return <div className="shell"><aside className={'sidebar '+(mobile?'open':'')}><
  toast('Resume saved for future job searches: '+version.name);
  }} onSave={(item,status='Saved')=>{
  const candidate:Job={id:newId(),title:item.title,company:item.company,location:item.location,remote:'Remote',description:item.description,url:item.url,salary:item.salary,status,createdAt:today(),notes:'Source: '+item.source+(item.posted?' | Published: '+item.posted:'')};
- update(d=>({...d,jobs:d.jobs.some(x=>x.url===candidate.url)?d.jobs:[candidate,...d.jobs]}));toast('Job saved to your personal opportunities list');
+ update(d=>({...d,jobs:d.jobs.some(x=>x.url===candidate.url)?d.jobs.map(x=>x.url===candidate.url?{...x,status}:x):[candidate,...d.jobs]}));toast(status==='Applied'?'Marked as applied in your applications':'Job saved to your personal opportunities list');
  }}/>}
 {view==='quick-apply'&&<QuickApply resumeText={data.candidate.resume} sender={data.candidate.name} savedResumes={data.resumes||[]} defaultResumeId={data.defaultResumeId}
  onSaveResume={async(version,file)=>{
